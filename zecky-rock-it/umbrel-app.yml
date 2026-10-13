@@ -1,0 +1,62 @@
+manifestVersion: 1
+id: zecky-rock-it
+storage:
+  dataRoot: data
+category: finance
+name: Zecky Rock it
+version: "0.1.0"
+tagline: Your own Zcash node for Zecky Lock it and Zecky Pocket
+icon: https://raw.githubusercontent.com/zeckyapp/rock-it/main/status/icon.svg
+description: >-
+  Needs about 300 GB of free disk space. The first sync downloads and checks
+  the whole Zcash chain, which takes several days on a Raspberry Pi 5.
+
+
+  Rock it runs a Zcash node on your Umbrel, with a light-wallet server in front
+  of it. Point Zecky Lock it and Zecky Pocket at it, and your wallets ask your
+  own node about the chain instead of someone else's server.
+
+
+  The app opens to a status page that shows how far the sync is and the
+  address to enter in Zecky. The wallet port (8137) is only open on your home
+  network. Away from home, connect through Tailscale.
+
+
+  Powered by Zakura (a Zcash node based on Zebra) and Zaino (a light-wallet
+  server by Zingo Labs), with two small Rock it patches for speed on a
+  Raspberry Pi.
+releaseNotes: ""
+
+developer: Zecky
+website: https://zecky.app
+dependencies: []
+repo: https://github.com/zeckyapp/rock-it
+support: https://github.com/zeckyapp/rock-it/issues
+
+port: 8138
+gallery: []
+path: ""
+
+defaultUsername: ""
+defaultPassword: ""
+
+widgets:
+  - id: "sync"
+    type: "text-with-progress"
+    refresh: "30s"
+    endpoint: "status:8080/api/widget"
+    link: ""
+    example:
+      type: "text-with-progress"
+      link: ""
+      title: "Rock it"
+      text: "Syncing 42.0%"
+      progressLabel: "Block 1,480,000 of about 3,520,000"
+      progress: 0.42
+
+backupIgnore:
+  - data/zakura/*
+  - data/zaino/*
+
+submitter: Zecky
+submission: https://github.com/zeckyapp/rock-it

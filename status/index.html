@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zecky Rock it</title>
+<meta name="theme-color" content="#14161C">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+:root{--ink:#14161C;--card:#1B1E25;--gold:#D4A657;--gold-hi:#E6C07E;--paper:#ECE8DF;--muted:#9A9DA6;--faint:#8A8D96;--line:#262932;--ok:#8FBF8A}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--ink);color:var(--paper)}
+body{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5}
+.serif{font-family:Newsreader,Georgia,"Times New Roman",serif}
+.page{max-width:720px;margin:0 auto;padding:32px 16px 48px;display:flex;flex-direction:column;gap:28px}
+header{display:flex;align-items:center;gap:12px;font-size:22px}
+header .tag{margin-left:auto;font-family:Inter,system-ui,sans-serif;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.hero{display:flex;flex-direction:column;gap:12px;padding-top:12px}
+.hero h1{margin:0;font-weight:300;font-size:clamp(40px,9vw,64px);line-height:1;letter-spacing:-.02em}
+.hero h1 span{color:var(--gold)}
+.hero p{margin:0;color:var(--muted);font-size:16px;max-width:34rem}
+.bar{height:6px;border-radius:99px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--gold);transition:width .6s ease}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px}
+.card h2{margin:0 0 12px;font-size:13px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.rows{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;margin:0}
+.rows dt{color:var(--faint)}
+.rows dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--faint);margin-right:8px;vertical-align:middle}
+.dot.on{background:var(--ok)}
+.dot.wait{background:var(--gold)}
+.addr{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0 12px}
+.addr code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:20px;color:var(--gold-hi);background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px 12px;word-break:break-all}
+button{height:40px;padding:0 18px;border:0;border-radius:999px;background:var(--gold);color:var(--ink);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+button:hover{background:var(--gold-hi)}
+button:focus-visible{outline:2px solid var(--gold-hi);outline-offset:3px}
+ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
+.note{margin:12px 0 0;font-size:14px;color:var(--faint)}
+.note strong{color:var(--paper);font-weight:500}
+footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:var(--faint);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="serif">
+    <svg width="20" height="26" viewBox="0 0 40 52" fill="none" aria-hidden="true"><path d="M9 7H31L9 39H31" stroke="#D4A657" stroke-width="4" stroke-linecap="square"/><path d="M14 48H26" stroke="#D4A657" stroke-width="3" stroke-linecap="round"/></svg>
+    Zecky Rock it
+    <span class="tag">Your own node</span>
+  </header>
+
+  <section class="hero" aria-live="polite">
+    <h1 class="serif" id="headline">Starting<span>.</span></h1>
+    <p id="sub">Checking the node…</p>
+    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="bar"><i></i></div>
+  </section>
+
+  <section class="card">
+    <h2>Status</h2>
+    <dl class="rows">
+      <dt>Zcash node</dt><dd id="node">–</dd>
+      <dt>Block</dt><dd id="height">–</dd>
+      <dt>Peers</dt><dd id="peers">–</dd>
+      <dt>Wallet server</dt><dd id="wallets">–</dd>
+      <dt>Free disk space</dt><dd id="disk">–</dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>Connect Zecky</h2>
+    <p style="margin:0">Server address for your phone:</p>
+    <div class="addr"><code id="address">–</code><button type="button" id="copy">Copy</button></div>
+    <ol>
+      <li>Open Zecky Lock it or Zecky Pocket.</li>
+      <li>Go to Settings, then Network, then Add a server.</li>
+      <li>Name it, for example <em>Rock it</em>, and enter the address above.</li>
+      <li>Tap <em>Check, save and use</em>.</li>
+    </ol>
+    <p class="note" id="hostnote" hidden><strong>Use the number, not the name.</strong> Zecky needs your Umbrel's IP address, such as 192.168.1.20. Open this page through that address, or find it in your router or in Umbrel's settings.</p>
+    <p class="note"><strong>Away from home?</strong> Install Tailscale on your Umbrel and on your phone, then add a second server with your Umbrel's Tailscale address (it starts with 100.) and port <span class="port">8137</span>.</p>
+    <p class="note">The wallet port is only open inside your home network. Your router does not forward it, so it is not reachable from the internet.</p>
+  </section>
+
+  <footer>
+    <span>Zakura node · Zaino wallet server</span>
+    <span id="version"></span>
+  </footer>
+</div>
+
+<script>
+(function(){
+  var port=8137;
+  var $=function(id){return document.getElementById(id);};
+  var fmt=function(n){return Number(n).toLocaleString('en-US');};
+  var host=location.hostname;
+  var isIp=/^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+
+  function showAddress(){
+    $('address').textContent=(isIp?host:'your-umbrel-ip')+':'+port;
+    $('hostnote').hidden=isIp;
+    Array.prototype.forEach.call(document.querySelectorAll('.port'),function(el){el.textContent=port;});
+  }
+
+  $('copy').addEventListener('click',function(){
+    var text=$('address').textContent;
+    var done=function(){$('copy').textContent='Copied';setTimeout(function(){$('copy').textContent='Copy';},1500);};
+    if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(text).then(done,function(){});}
+    else{var r=document.createRange();r.selectNodeContents($('address'));var s=getSelection();s.removeAllRanges();s.addRange(r);try{document.execCommand('copy');done();}catch(e){}}
+  });
+
+  function dot(cls,text){return '<span class="dot '+cls+'"></span>'+text;}
+
+  function render(s){
+    var n=s.node,pct=n.reachable?n.progress*100:0;
+    port=s.walletServer.port||port;showAddress();
+    var head,sub;
+    if(s.phase==='starting'){head='Starting';sub='The Zcash node is starting. This takes a minute.';}
+    else if(s.phase==='syncing'){head='Syncing '+pct.toFixed(1)+'%';sub='Your node is downloading and checking the Zcash chain. A full sync takes days on a Raspberry Pi; you can close this page.';}
+    else if(s.phase==='opening'){head='Almost ready';sub='The node is in sync. The wallet server is opening its port.';}
+    else{head='Ready';sub='Your node is in sync. Connect Zecky below.';}
+    $('headline').innerHTML=head+'<span>.</span>';
+    $('sub').textContent=sub;
+    var bar=$('bar');bar.firstElementChild.style.width=(s.phase==='ready'||s.phase==='opening'?100:pct)+'%';
+    bar.setAttribute('aria-valuenow',Math.round(pct));
+    $('node').innerHTML=n.reachable?dot(pct>=99.9?'on':'wait',pct>=99.9?'In sync':'Syncing'):dot('','Starting');
+    $('height').textContent=n.reachable?(fmt(n.height)+(pct<99.9?' of ~'+fmt(n.estimatedHeight):'')):'–';
+    $('peers').textContent=n.reachable&&n.peers!=null?fmt(n.peers):'–';
+    $('wallets').innerHTML=s.walletServer.open?dot('on','Open on port '+port):dot('wait','Waiting for the node');
+    $('disk').textContent=s.disk?Math.round(s.disk.free/1e9).toLocaleString('en-US')+' GB of '+Math.round(s.disk.total/1e9).toLocaleString('en-US')+' GB':'–';
+    $('version').textContent=s.version?'Rock it '+s.version:'';
+  }
+
+  function tick(){
+    fetch('api/status',{cache:'no-store'}).then(function(r){return r.json();}).then(render)
+      .catch(function(){$('sub').textContent='Cannot reach Rock it. Retrying…';})
+      .then(function(){setTimeout(tick,5000);});
+  }
+  showAddress();tick();
+})();
+</script>
+</body>
+</html>

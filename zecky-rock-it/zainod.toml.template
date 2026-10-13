@@ -1,0 +1,39 @@
+# Zaino settings for Zecky Rock it (Zaino 0.10.2 with the Rock it patches).
+# Written by Umbrel from zainod.toml.template on every start.
+
+backend = "rpc"
+network = "Mainnet"
+
+# No index of its own: every read goes to the node, so wallets can connect as
+# soon as Zaino starts.
+ephemeral_finalised_state = true
+
+[grpc_settings]
+# Must be a private IP address: Zaino refuses to serve wallets on a name or a
+# public address without TLS.
+listen_address = "${APP_ZECKY_ROCK_IT_ZAINO_IP}:${APP_ZECKY_ROCK_IT_WALLET_PORT}"
+
+[validator_settings]
+validator_jsonrpc_listen_address = "${APP_ZECKY_ROCK_IT_ZAKURA_IP}:8232"
+# Zakura's RPC runs without a password; these placeholders are ignored.
+validator_user = "xxxxxx"
+validator_password = "xxxxxx"
+
+[service]
+timeout = 30
+channel_size = 32
+
+[storage.cache]
+capacity = 10000
+shard_power = 4
+
+[storage.database]
+path = "/app/data"
+# Address space for the database in GB; the default of 384 cannot be mapped on
+# a Raspberry Pi.
+size = 200
+sync_write_batch_size = 4
+accumulator_rebuild_memory_size = 2
+sync_checkpoint_interval = 120
+
+[mempool]
