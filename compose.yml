@@ -1,0 +1,49 @@
+# Rock it: a Zcash node (Zakura) with a light-wallet server (Zaino) in front,
+# for Zecky Lock it and Zecky Pocket.
+#
+#   docker compose up -d
+#
+# ROCKIT_DATA is where the chain and indexes live; it needs about 300 GB.
+# Defaults to /mnt/data, the SSD on umbrelOS.
+
+name: rockit
+
+services:
+  zakura:
+    # Pin to a digest before release.
+    image: docker.io/zakuracore/zakura:latest
+    restart: unless-stopped
+    environment:
+      # RPC for Zaino, only reachable on the rockitnet network below.
+      ZAKURA_RPC__LISTEN_ADDR: 0.0.0.0:8232
+      ZAKURA_RPC__ENABLE_COOKIE_AUTH: "false"
+    volumes:
+      - ${ROCKIT_DATA:-/mnt/data}/zakura/cache:/home/zebra/.cache/zakura
+    ports:
+      # Zcash peer-to-peer. Not needed for wallets.
+      - "8233:8233"
+    networks:
+      rockitnet: {}
+
+  zaino:
+    build: ./zaino
+    image: zecky/zaino-rockit:0.10.2-rockit1
+    restart: unless-stopped
+    depends_on:
+      - zakura
+    volumes:
+      - ./zaino/zainod.toml:/app/config/zainod.toml:ro
+      - ${ROCKIT_DATA:-/mnt/data}/zaino/data:/app/data
+    ports:
+      # Wallets connect here: the home address, or the Tailscale address when
+      # away. The router does not forward it, so it is not on the internet.
+      - "8137:8137"
+    networks:
+      rockitnet:
+        ipv4_address: 172.30.0.10
+
+networks:
+  rockitnet:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

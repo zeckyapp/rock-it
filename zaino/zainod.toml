@@ -1,0 +1,45 @@
+# Zaino settings for Rock it (Zaino 0.10.2 with the Rock it patches).
+
+backend = "rpc"
+network = "Mainnet"
+
+# true: no index of its own; every read goes to the node (Zakura). Wallets can
+# connect at once. false: Zaino first builds its own index of the whole chain
+# (two to three days on a Raspberry Pi 5) and only then opens the wallet port.
+ephemeral_finalised_state = true
+
+[grpc_settings]
+# Must be an IP address, not a name, and a private one: Zaino refuses to serve
+# wallets on a public address without TLS. This is Zaino's fixed address on
+# the rockitnet network in compose.yml; Docker forwards port 8137 to it.
+listen_address = "172.30.0.10:8137"
+
+[validator_settings]
+# The node, reached by its container name on the private rockitnet network.
+# Zakura's RPC there has no password and is not published outside Docker;
+# the user and password below are placeholders it ignores.
+validator_jsonrpc_listen_address = "zakura:8232"
+validator_user = "xxxxxx"
+validator_password = "xxxxxx"
+
+[service]
+timeout = 30
+channel_size = 32
+
+[storage.cache]
+capacity = 10000
+shard_power = 4
+
+[storage.database]
+path = "/app/data"
+# Address space reserved for the database, in GB. The default of 384 cannot be
+# mapped on a Raspberry Pi ("Cannot allocate memory").
+size = 200
+# Memory budgets in GB for building the index (only used when
+# ephemeral_finalised_state = false). The defaults of 8 are too much for a
+# Pi with 8 GB shared with the node.
+sync_write_batch_size = 4
+accumulator_rebuild_memory_size = 2
+sync_checkpoint_interval = 120
+
+[mempool]
