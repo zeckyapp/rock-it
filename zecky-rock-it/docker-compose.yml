@@ -22,8 +22,11 @@ services:
       - ${APP_DATA_DIR}/data/zakura:/chain:ro
 
   # The Zcash node.
+  # Zakura publishes only "latest"; the digest pins the exact 1.6.0 build.
+  # Runs as root at first: its entrypoint gives the data folder to its own
+  # user (10001) and then drops to that user.
   zakura:
-    image: docker.io/zakuracore/zakura:latest
+    image: docker.io/zakuracore/zakura:latest@sha256:bf53c178e9549217fce7cfaa21efc85c478129ba6dc5307d55640514affeb0ac
     restart: on-failure
     stop_grace_period: 1m
     environment:
