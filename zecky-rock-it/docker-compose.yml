@@ -1,0 +1,52 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      APP_HOST: zecky-rock-it_status_1
+      APP_PORT: 8080
+
+  # Status and connection page (the app's web UI and home-screen widget).
+  status:
+    image: ghcr.io/zeckyapp/rockit-status:0.1.0
+    user: "1000:1000"
+    restart: on-failure
+    environment:
+      ZAKURA_RPC: "http://${APP_ZECKY_ROCK_IT_ZAKURA_IP}:8232"
+      ZAINO_ADDR: "${APP_ZECKY_ROCK_IT_ZAINO_IP}:${APP_ZECKY_ROCK_IT_WALLET_PORT}"
+      WALLET_PORT: "${APP_ZECKY_ROCK_IT_WALLET_PORT}"
+      APP_VERSION: "${APP_VERSION}"
+      DATA_DIR: /chain
+    volumes:
+      # Read-only, only to show the free space on the drive.
+      - ${APP_DATA_DIR}/data/zakura:/chain:ro
+
+  # The Zcash node.
+  zakura:
+    image: docker.io/zakuracore/zakura:latest
+    restart: on-failure
+    stop_grace_period: 1m
+    environment:
+      # RPC for Zaino and the status page. Not published outside Docker.
+      ZAKURA_RPC__LISTEN_ADDR: "0.0.0.0:8232"
+      ZAKURA_RPC__ENABLE_COOKIE_AUTH: "false"
+    volumes:
+      - ${APP_DATA_DIR}/data/zakura:/home/zebra/.cache/zakura
+    networks:
+      default:
+        ipv4_address: $APP_ZECKY_ROCK_IT_ZAKURA_IP
+
+  # Light-wallet server: Zecky Lock it and Pocket connect here.
+  zaino:
+    image: ghcr.io/zeckyapp/zaino-rockit:0.10.2-rockit1
+    restart: on-failure
+    depends_on:
+      - zakura
+    volumes:
+      - ${APP_DATA_DIR}/zainod.toml:/app/config/zainod.toml:ro
+      - ${APP_DATA_DIR}/data/zaino:/app/data
+    ports:
+      - "${APP_ZECKY_ROCK_IT_WALLET_PORT}:${APP_ZECKY_ROCK_IT_WALLET_PORT}"
+    networks:
+      default:
+        ipv4_address: $APP_ZECKY_ROCK_IT_ZAINO_IP
