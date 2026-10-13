@@ -24,6 +24,9 @@ RUN git apply /patches/*.patch
 RUN cargo install --locked --path packages/zainod --bin zainod --root /out
 
 FROM docker.io/library/debian:bookworm-slim
+LABEL org.opencontainers.image.source="https://github.com/zeckyapp/rock-it" \
+      org.opencontainers.image.description="Zaino light-wallet server with the Zecky Rock it patches" \
+      org.opencontainers.image.licenses="Apache-2.0"
 # Zaino's RPC client loads the system root certificates when it starts, even
 # for a plain connection to the node, and fails without them.
 RUN apt-get update \
