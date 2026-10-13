@@ -8,7 +8,7 @@ services:
 
   # Status and connection page (the app's web UI and home-screen widget).
   status:
-    image: ghcr.io/zeckyapp/rockit-status:0.1.0
+    image: ghcr.io/zeckyapp/rockit-status:0.1.0@sha256:ce80429786a73933c77ff431aa90e08529c7054981abf73d46196ee894054ace
     user: "1000:1000"
     restart: on-failure
     environment:
@@ -41,7 +41,7 @@ services:
 
   # Light-wallet server: Zecky Lock it and Pocket connect here.
   zaino:
-    image: ghcr.io/zeckyapp/zaino-rockit:0.10.2-rockit1
+    image: ghcr.io/zeckyapp/zaino-rockit:0.10.2-rockit1@sha256:3abdb522b5296871fb53ce5897f72886ebf42b2ffc93890b1ad02e4d075172be
     restart: on-failure
     depends_on:
       - zakura
