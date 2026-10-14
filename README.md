@@ -28,6 +28,7 @@ The wallets keep their keys. Rock it holds no keys and no funds.
 | `zaino/zainod.toml` | Zaino's settings |
 | `scripts/rockit-status.sh` | Sync status and the Pi's health |
 | `docs/findings.md` | What was learned getting this to run on a Raspberry Pi 5 |
+| `app/` | The Rock it iPhone app (see `app/README.md`) |
 
 ## Running it
 
