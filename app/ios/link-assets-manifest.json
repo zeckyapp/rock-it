@@ -1,0 +1,25 @@
+{
+  "migIndex": 1,
+  "data": [
+    {
+      "path": "assets/fonts/Inter-Medium.ttf",
+      "sha1": "a961cb10310cf86b23bfbe21a637614d1046d795"
+    },
+    {
+      "path": "assets/fonts/Inter-Regular.ttf",
+      "sha1": "7a3fa76705ad586f6410a1b5b0059dd17db20c26"
+    },
+    {
+      "path": "assets/fonts/Inter-SemiBold.ttf",
+      "sha1": "863e1483cb0cad642b80fc840072596afd5ff144"
+    },
+    {
+      "path": "assets/fonts/Newsreader-Medium.ttf",
+      "sha1": "a46b874d222fc0f65819ccf8447fdfcf56df99f8"
+    },
+    {
+      "path": "assets/fonts/Newsreader-Regular.ttf",
+      "sha1": "2e52fef7062fb58bf5edc71ad62ea22a24678c43"
+    }
+  ]
+}

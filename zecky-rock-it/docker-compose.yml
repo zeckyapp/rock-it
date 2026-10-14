@@ -5,6 +5,10 @@ services:
     environment:
       APP_HOST: zecky-rock-it_status_1
       APP_PORT: 8080
+      # The Rock it iPhone app reads the sync status without an Umbrel login.
+      # Read-only: /api/status and /api/widget. The page itself stays behind
+      # the login.
+      PROXY_AUTH_WHITELIST: "/api/*"
 
   # Status and connection page (the app's web UI and home-screen widget).
   status:

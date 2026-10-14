@@ -4,7 +4,7 @@ storage:
   dataRoot: data
 category: finance
 name: Zecky Rock it
-version: "0.1.0"
+version: "0.1.1"
 tagline: Your own Zcash node for Zecky Lock it and Zecky Pocket
 icon: https://raw.githubusercontent.com/zeckyapp/rock-it/main/status/icon.svg
 description: >-
@@ -25,7 +25,10 @@ description: >-
   Powered by Zakura (a Zcash node based on Zebra) and Zaino (a light-wallet
   server by Zingo Labs), with two small Rock it patches for speed on a
   Raspberry Pi.
-releaseNotes: ""
+releaseNotes: >-
+  The Rock it iPhone app can now read the sync status from your home network
+  or over Tailscale, without an Umbrel login. Only the read-only status is
+  open; the page itself still asks for your Umbrel login.
 
 developer: Zecky
 website: https://zecky.app
