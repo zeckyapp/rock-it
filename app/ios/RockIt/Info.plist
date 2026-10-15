@@ -41,8 +41,6 @@
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Rock it uses the camera only to scan the pairing code on your Umbrel. Nothing is recorded.</string>
