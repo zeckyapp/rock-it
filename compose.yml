@@ -19,9 +19,11 @@ services:
       ZAKURA_RPC__ENABLE_COOKIE_AUTH: "false"
     volumes:
       - ${ROCKIT_DATA:-/mnt/data}/zakura/cache:/home/zebra/.cache/zakura
-    ports:
-      # Zcash peer-to-peer. Not needed for wallets.
-      - "8233:8233"
+    # Zcash peer-to-peer (8233) is not published: the node only connects out,
+    # so nobody can find it from the internet. To let other nodes connect in
+    # (and show your home address as a Zcash node), add:
+    #   ports:
+    #     - "8233:8233"
     networks:
       rockitnet: {}
 

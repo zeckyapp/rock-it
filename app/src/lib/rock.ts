@@ -2,11 +2,16 @@ import { useSyncExternalStore } from 'react';
 import { Platform, Settings } from 'react-native';
 import { Address, addressLabel, parseAddress } from './address';
 
-/** The owner's Rock: one address at home, one for when they are away. */
+/**
+ * The owner's Rock: one address at home, one for when they are away, and
+ * this phone's device id from pairing (the key itself is in the Keychain).
+ * A Rock saved by 0.1 has no device id and must be paired.
+ */
 export interface Rock {
   name: string;
   home: Address | null;
   away: Address | null;
+  deviceId: string | null;
 }
 
 const KEY = 'rockit.rock';
@@ -27,7 +32,12 @@ export function parseRock(raw: unknown): Rock | null {
     return null;
   }
   if (value == null || typeof value !== 'object') return null;
-  const v = value as { name?: unknown; home?: unknown; away?: unknown };
+  const v = value as {
+    name?: unknown;
+    home?: unknown;
+    away?: unknown;
+    deviceId?: unknown;
+  };
   const home = typeof v.home === 'string' ? parseAddress(v.home) : null;
   const away = typeof v.away === 'string' ? parseAddress(v.away) : null;
   if (home == null && away == null) return null;
@@ -35,6 +45,7 @@ export function parseRock(raw: unknown): Rock | null {
     name: cleanName(typeof v.name === 'string' ? v.name : ''),
     home,
     away,
+    deviceId: typeof v.deviceId === 'string' ? v.deviceId : null,
   };
 }
 
@@ -67,6 +78,7 @@ export function saveRock(rock: Rock | null): void {
                 name: rock.name,
                 home: rock.home && addressLabel(rock.home),
                 away: rock.away && addressLabel(rock.away),
+                deviceId: rock.deviceId,
               }),
       });
     }

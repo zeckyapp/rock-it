@@ -55,9 +55,18 @@ Store, the three dots, Community App Stores, add
 `https://github.com/zeckyapp/rock-it`, then install Zecky Rock it.
 
 The app runs Zakura, Zaino and a small status page (`status/`). The page shows
-the sync and the address to enter in Zecky, and adds a sync widget to the
-Umbrel home screen. Wallets connect on port 8137; the node's RPC stays inside
-Docker. Chain data lives in the app's data folder and is left out of Umbrel
+the sync, the address to enter in Zecky and a QR code to pair the Rock it
+iPhone app, and adds a sync widget to the Umbrel home screen. Wallets connect
+on port 8137; the node's RPC stays inside Docker. The node's peer port (8233)
+is not published, so it only connects out and nobody can find it from the
+internet.
+
+Pairing: the page (behind the Umbrel login) shows a code that works once, for
+ten minutes, and dies after five wrong tries. The iPhone trades it at
+`/phone/pair` for its own key; only `/phone/*` skips the Umbrel login, and
+`/phone/status` answers only with a paired key. Keys are stored as SHA-256
+hashes in the app's data folder, and the page can remove any iPhone. Tests:
+`cd status && python3 -m unittest`. Chain data lives in the app's data folder and is left out of Umbrel
 backups. It needs about 300 GB, and a first sync takes days on a Pi.
 
 Images: `ghcr.io/zeckyapp/zaino-rockit` and `ghcr.io/zeckyapp/rockit-status`,

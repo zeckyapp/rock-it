@@ -7,6 +7,7 @@
 <meta name="theme-color" content="#14161C">
 <meta name="referrer" content="no-referrer">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
+<script src="qr.js"></script>
 <style>
 :root{--ink:#14161C;--card:#1B1E25;--gold:#D4A657;--gold-hi:#E6C07E;--paper:#ECE8DF;--muted:#9A9DA6;--faint:#8A8D96;--line:#262932;--ok:#8FBF8A}
 *{box-sizing:border-box}
@@ -38,6 +39,18 @@ button:focus-visible{outline:2px solid var(--gold-hi);outline-offset:3px}
 ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
 .note{margin:12px 0 0;font-size:14px;color:var(--faint)}
 .note strong{color:var(--paper);font-weight:500}
+.pair{display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:center}
+.qr{background:var(--paper);border-radius:12px;padding:12px;width:188px;height:188px;display:flex;align-items:center;justify-content:center}
+.qr svg{width:164px;height:164px;display:block}
+.code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:26px;letter-spacing:.12em;color:var(--gold-hi)}
+.quiet{background:transparent;color:var(--gold);border:1px solid var(--line)}
+.quiet:hover{background:var(--line)}
+.devices{list-style:none;margin:16px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.devices li{display:flex;align-items:center;gap:12px;border-top:1px solid var(--line);padding-top:8px}
+.devices li span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.devices li small{color:var(--faint)}
+.devices button{height:32px;padding:0 14px;font-size:13px}
+@media (max-width:520px){.pair{grid-template-columns:1fr;justify-items:start}}
 footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:var(--faint);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 </style>
 </head>
@@ -63,7 +76,23 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
       <dt>Peers</dt><dd id="peers">–</dd>
       <dt>Wallet server</dt><dd id="wallets">–</dd>
       <dt>Free disk space</dt><dd id="disk">–</dd>
+      <dt>Privacy</dt><dd id="privacy">–</dd>
     </dl>
+  </section>
+
+  <section class="card">
+    <h2>Pair the Rock it app</h2>
+    <div class="pair">
+      <div class="qr" id="qr" aria-label="Pairing code as a QR code" role="img"></div>
+      <div>
+        <p style="margin:0">In the Rock it iPhone app, tap <em>Scan</em> and point it here. Or type this code:</p>
+        <p class="code" id="code" style="margin:8px 0">––––-––––</p>
+        <p class="note" style="margin:0 0 12px" id="expires">&nbsp;</p>
+        <button type="button" class="quiet" id="newcode">New code</button>
+      </div>
+    </div>
+    <p class="note">The code works once, for ten minutes. Each iPhone gets its own key; remove one here and it can no longer read your Rock.</p>
+    <ul class="devices" id="devices"></ul>
   </section>
 
   <section class="card">
@@ -128,14 +157,58 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
     $('wallets').innerHTML=s.walletServer.open?dot('on','Open on port '+port):dot('wait','Waiting for the node');
     $('disk').textContent=s.disk?Math.round(s.disk.free/1e9).toLocaleString('en-US')+' GB of '+Math.round(s.disk.total/1e9).toLocaleString('en-US')+' GB':'–';
     $('version').textContent=s.version?'Rock it '+s.version:'';
+    var pv=s.privacy;
+    $('privacy').innerHTML=pv?(pv.inbound?dot('wait','Open to other nodes'):dot('on','Private, connects out only')):'–';
   }
+
+  var pairState=null;
+  function esc(t){return String(t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function pairLink(code){
+    var p=location.port||(location.protocol==='https:'?'443':'80');
+    return 'rockit://pair?h='+encodeURIComponent(host)+'&p='+p+'&c='+code;
+  }
+  function renderPair(st){
+    pairState=st;
+    var c=st.code;
+    $('code').textContent=c.slice(0,4)+'-'+c.slice(4);
+    if(typeof qrcode==='function'){
+      var q=qrcode(0,'M');q.addData(pairLink(c));q.make();
+      $('qr').innerHTML=q.createSvgTag({cellSize:4,margin:0,scalable:true});
+    }
+    var list=st.devices||[];
+    $('devices').innerHTML=list.length?list.map(function(d){
+      var seen=d.seen?new Date(d.seen*1000).toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'}):'';
+      return '<li><span>'+esc(d.name)+' <small>· last seen '+esc(seen)+'</small></span><button type="button" class="quiet" data-id="'+esc(d.id)+'">Remove</button></li>';
+    }).join(''):'<li><span><small>No iPhones paired yet.</small></span></li>';
+    showExpiry();
+  }
+  function showExpiry(){
+    if(!pairState)return;
+    var left=Math.round(pairState.expires-Date.now()/1000);
+    if(left<=0){loadPair();return;}
+    $('expires').textContent='Valid for '+Math.ceil(left/60)+' more min';
+  }
+  function loadPair(){
+    fetch('api/pairing',{cache:'no-store'}).then(function(r){return r.json();}).then(renderPair).catch(function(){});
+  }
+  function post(path,body){
+    return fetch(path,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','X-Rock-It':'1'},body:JSON.stringify(body||{})}).then(function(r){return r.json();});
+  }
+  $('newcode').addEventListener('click',function(){post('api/pairing/new').then(renderPair);});
+  $('devices').addEventListener('click',function(e){
+    var id=e.target&&e.target.getAttribute('data-id');if(!id)return;
+    if(!confirm('Remove this iPhone? It will need to pair again.'))return;
+    post('api/devices/remove',{id:id}).then(function(r){renderPair({code:pairState.code,expires:pairState.expires,devices:r.devices});});
+  });
+  setInterval(function(){showExpiry();},15000);
+  setInterval(loadPair,30000);
 
   function tick(){
     fetch('api/status',{cache:'no-store'}).then(function(r){return r.json();}).then(render)
       .catch(function(){$('sub').textContent='Cannot reach Rock it. Retrying…';})
       .then(function(){setTimeout(tick,5000);});
   }
-  showAddress();tick();
+  showAddress();tick();loadPair();
 })();
 </script>
 </body>

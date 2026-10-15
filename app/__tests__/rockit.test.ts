@@ -1,12 +1,31 @@
 import { isPrivate, isTailscale, parseAddress } from '../src/lib/address';
 import { checkRock } from '../src/lib/check';
 import { parseRock } from '../src/lib/rock';
-import { parseStatus, RockError, summarize } from '../src/lib/status';
+import { cleanCode, pairWith, parsePairLink } from '../src/lib/pair';
+import {
+  fetchStatus,
+  parseStatus,
+  RockError,
+  summarize,
+} from '../src/lib/status';
 
 jest.mock('react-native', () => ({
   Platform: { OS: 'ios' },
   Settings: { get: () => undefined, set: () => {} },
 }));
+jest.mock('react-native-keychain', () => ({}));
+
+function reply(status: number, body: unknown) {
+  return Promise.resolve({
+    ok: status >= 200 && status < 300,
+    status,
+    redirected: false,
+    json: () =>
+      typeof body === 'string'
+        ? Promise.reject(new Error('html'))
+        : Promise.resolve(body),
+  } as unknown as Response);
+}
 
 const ready = {
   phase: 'ready',
@@ -81,7 +100,12 @@ describe('a Rock', () => {
       name: 'My Rock',
       home: { host: '192.168.1.20', port: 8138 },
       away: null,
+      deviceId: null,
     });
+    expect(
+      parseRock(JSON.stringify({ home: 'umbrel.local', deviceId: 'ab12' }))
+        ?.deviceId,
+    ).toBe('ab12');
   });
 
   it('tries home first, then Tailscale', async () => {
@@ -93,7 +117,7 @@ describe('a Rock', () => {
       }),
     )!;
     const seen: string[] = [];
-    const reached = await checkRock(rock, async a => {
+    const reached = await checkRock(rock, 'k', async a => {
       seen.push(a.host);
       if (a.host === '192.168.1.20') {
         throw new RockError('No answer', 'unreachable');
@@ -109,11 +133,107 @@ describe('a Rock', () => {
       JSON.stringify({ home: '192.168.1.20', away: '100.101.102.103' }),
     )!;
     await expect(
-      checkRock(rock, async a => {
+      checkRock(rock, 'k', async a => {
         throw a.host === '192.168.1.20'
           ? new RockError('Login', 'login')
           : new RockError('No answer', 'unreachable');
       }),
     ).rejects.toMatchObject({ kind: 'login' });
+  });
+});
+
+describe('pairing', () => {
+  it('reads codes the way people type them', () => {
+    expect(cleanCode('k7qm-3xpa')).toBe('K7QM3XPA');
+    expect(cleanCode(' K7QM 3XPA ')).toBe('K7QM3XPA');
+    expect(cleanCode('K7QM3XP')).toBeNull();
+    expect(cleanCode('K7QM3XP0')).toBeNull(); // no zero in codes
+  });
+
+  it('reads the QR link, only for private addresses', () => {
+    expect(
+      parsePairLink('rockit://pair?h=umbrel.local&p=8138&c=K7QM3XPA'),
+    ).toEqual({
+      address: { host: 'umbrel.local', port: 8138 },
+      code: 'K7QM3XPA',
+    });
+    expect(
+      parsePairLink('rockit://pair?h=100.101.102.103&p=8138&c=K7QM3XPA')
+        ?.address.host,
+    ).toBe('100.101.102.103');
+    expect(
+      parsePairLink('rockit://pair?h=evil.example.com&c=K7QM3XPA'),
+    ).toBeNull();
+    expect(parsePairLink('rockit://pair?h=8.8.8.8&c=K7QM3XPA')).toBeNull();
+    expect(parsePairLink('rockit://pair?h=umbrel.local&c=nope')).toBeNull();
+    expect(parsePairLink('https://umbrel.local/?c=K7QM3XPA')).toBeNull();
+  });
+
+  it('trades the code for a key', async () => {
+    const calls: [string, RequestInit][] = [];
+    globalThis.fetch = jest.fn((url: string, init: RequestInit) => {
+      calls.push([url, init]);
+      return reply(200, { id: 'd1', key: 'secret' });
+    }) as unknown as typeof fetch;
+    const paired = await pairWith(
+      { host: 'umbrel.local', port: 8138 },
+      'K7QM3XPA',
+      'iPhone',
+    );
+    expect(paired).toEqual({ deviceId: 'd1', key: 'secret' });
+    expect(calls[0][0]).toBe('http://umbrel.local:8138/phone/pair');
+    expect(JSON.parse(String(calls[0][1].body))).toEqual({
+      code: 'K7QM3XPA',
+      name: 'iPhone',
+    });
+  });
+
+  it('explains a wrong code and an old Rock', async () => {
+    const at = { host: 'umbrel.local', port: 8138 };
+    globalThis.fetch = jest.fn(() => reply(403, { error: 'code' })) as never;
+    await expect(pairWith(at, 'K7QM3XPA', 'x')).rejects.toMatchObject({
+      kind: 'code',
+    });
+    globalThis.fetch = jest.fn(() => reply(200, '<html>')) as never;
+    await expect(pairWith(at, 'K7QM3XPA', 'x')).rejects.toMatchObject({
+      kind: 'login',
+    });
+  });
+
+  it('sends the key and notices when the iPhone was removed', async () => {
+    const at = { host: 'umbrel.local', port: 8138 };
+    let headers: Record<string, string> = {};
+    globalThis.fetch = jest.fn((url: string, init: RequestInit) => {
+      headers = init.headers as Record<string, string>;
+      expect(url).toBe('http://umbrel.local:8138/phone/status');
+      return reply(200, {
+        ...ready,
+        privacy: { mode: 'private', inbound: false },
+      });
+    }) as never;
+    const status = await fetchStatus(at, 'secret');
+    expect(headers.Authorization).toBe('Bearer secret');
+    expect(status.privacy).toEqual({ inbound: false });
+
+    globalThis.fetch = jest.fn(() =>
+      reply(401, { error: 'unpaired' }),
+    ) as never;
+    await expect(fetchStatus(at, 'old')).rejects.toMatchObject({
+      kind: 'unpaired',
+    });
+  });
+
+  it('stops at "not paired" instead of trying the next address', async () => {
+    const rock = parseRock(
+      JSON.stringify({ home: '192.168.1.20', away: '100.101.102.103' }),
+    )!;
+    const seen: string[] = [];
+    await expect(
+      checkRock(rock, 'k', async a => {
+        seen.push(a.host);
+        throw new RockError('Removed', 'unpaired');
+      }),
+    ).rejects.toMatchObject({ kind: 'unpaired' });
+    expect(seen).toEqual(['192.168.1.20']);
   });
 });

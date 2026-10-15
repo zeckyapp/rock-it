@@ -4,7 +4,7 @@ storage:
   dataRoot: data
 category: finance
 name: Zecky Rock it
-version: "0.1.1"
+version: "0.2.0"
 tagline: Your own Zcash node for Zecky Lock it and Zecky Pocket
 icon: https://raw.githubusercontent.com/zeckyapp/rock-it/main/status/icon.svg
 description: >-
@@ -17,18 +17,21 @@ description: >-
   own node about the chain instead of someone else's server.
 
 
-  The app opens to a status page that shows how far the sync is and the
-  address to enter in Zecky. The wallet port (8137) is only open on your home
-  network. Away from home, connect through Tailscale.
+  The app opens to a status page that shows how far the sync is, the address
+  to enter in Zecky, and a code to pair the Rock it iPhone app. The node only
+  connects out, so nobody can find it from the internet. The wallet port
+  (8137) is only open on your home network. Away from home, connect through
+  Tailscale.
 
 
   Powered by Zakura (a Zcash node based on Zebra) and Zaino (a light-wallet
   server by Zingo Labs), with two small Rock it patches for speed on a
   Raspberry Pi.
 releaseNotes: >-
-  The Rock it iPhone app can now read the sync status from your home network
-  or over Tailscale, without an Umbrel login. Only the read-only status is
-  open; the page itself still asks for your Umbrel login.
+  Pair the Rock it iPhone app by scanning the code on this page. Each iPhone
+  gets its own key, and you can remove an iPhone here at any time. Without a
+  key, nothing can read your Rock: the open status from 0.1.1 is closed. After
+  updating, pair your iPhone again.
 
 developer: Zecky
 website: https://zecky.app
