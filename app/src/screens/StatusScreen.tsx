@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { ProgressRing } from '../components/ProgressRing';
 import { Address, WALLET_PORT } from '../lib/address';
+import { version as APP_VERSION } from '../../package.json';
 import { checkRock, Reached } from '../lib/check';
 import { loadKey } from '../lib/key';
 import { Rock } from '../lib/rock';
@@ -202,11 +203,11 @@ export function StatusScreen({ rock, onEdit }: Props) {
           <Row
             label="Wallets"
             value={status.walletServer.open ? 'Can connect' : 'Not yet'}
-            last={!status.version}
           />
           {status.version ? (
-            <Row label="Version" value={status.version} last />
+            <Row label="Rock it on Umbrel" value={status.version} />
           ) : null}
+          <Row label="This app" value={APP_VERSION} last />
         </View>
       ) : null}
 
