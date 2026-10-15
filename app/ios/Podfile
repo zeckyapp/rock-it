@@ -39,6 +39,12 @@ target 'RockIt' do
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
         config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
+        # Some pods (react-native-svg's filters) still say iOS 12.4, which
+        # current Xcode refuses. Raise them to the app's own minimum.
+        current = config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
+        if current.nil? || Gem::Version.new(current) < Gem::Version.new(min_ios_version_supported)
+          config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = min_ios_version_supported
+        end
       end
     end
   end
