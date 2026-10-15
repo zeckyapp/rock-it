@@ -19,7 +19,7 @@ permissions:
 env:
   IMAGE: ghcr.io/zeckyapp/rockit-status
   # Raise with every change to the status page.
-  VERSION: 0.2.0
+  VERSION: 0.3.0
 
 jobs:
   build:

@@ -1,4 +1,5 @@
-import { Address, addressLabel, isPrivate, STATUS_PORT } from './address';
+import { Address, addressLabel, isPrivate, PHONE_PORT } from './address';
+import { rockRequest } from './https';
 import { RockError } from './status';
 
 /** The letters the Umbrel uses for codes: no 0/O and no 1/I/L. */
@@ -15,11 +16,16 @@ export function cleanCode(text: string): string | null {
 export interface PairLink {
   address: Address;
   code: string;
+  /** The Rock's certificate fingerprint (base64url SHA-256), from the QR. */
+  pin: string | null;
 }
+
+/** A certificate fingerprint: 32 bytes as base64url, 43 characters. */
+const PIN = /^[A-Za-z0-9_-]{43}$/;
 
 /**
  * Reads the link in the Umbrel page's QR code:
- *   rockit://pair?h=umbrel.local&p=8138&c=ABCDEFGH
+ *   rockit://pair?h=umbrel.local&c=ABCDEFGH&t=8139&k=<fingerprint>
  * Only private addresses (home network, Tailscale) are accepted, so a link
  * from a website cannot pair the app with a server on the internet.
  */
@@ -39,60 +45,58 @@ export function parsePairLink(url: string): PairLink | null {
   if (!/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(host) || !isPrivate(host)) {
     return null;
   }
-  const port = params.p ? Number(params.p) : STATUS_PORT;
+  const port = params.t ? Number(params.t) : PHONE_PORT;
   if (!Number.isInteger(port) || port < 1 || port > 65535) return null;
   const code = cleanCode(params.c ?? '');
   if (code == null) return null;
-  return { address: { host, port }, code };
+  if (params.k != null && !PIN.test(params.k)) return null;
+  return { address: { host, port }, code, pin: params.k ?? null };
 }
 
 export interface Paired {
   deviceId: string;
   key: string;
+  /** The fingerprint of the Rock's certificate, kept from now on. */
+  pin: string;
 }
 
-/** Trades the code from the Umbrel page for this phone's own key. */
+/**
+ * Trades the code from the Umbrel page for this phone's own key, over HTTPS.
+ * With the fingerprint from the QR, only that Rock is trusted. Without it
+ * (a typed code), the Rock that answers is trusted and its fingerprint is kept
+ * for every later connection.
+ */
 export async function pairWith(
   address: Address,
   code: string,
   name: string,
-  timeoutMs = 8000,
+  pin: string | null,
 ): Promise<Paired> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  let response: Response;
-  try {
-    response = await fetch(`http://${addressLabel(address)}/phone/pair`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify({ code, name }),
-      signal: controller.signal,
-    });
-  } catch {
-    throw new RockError(
-      `No answer from ${addressLabel(
-        address,
-      )}. Is the phone on the same Wi-Fi as your Umbrel?`,
-      'unreachable',
-    );
-  } finally {
-    clearTimeout(timer);
+  let trusted = pin;
+  if (trusted == null) {
+    const hello = await rockRequest(address, '/phone/hello', { pin: '' });
+    if (hello.json?.rockit !== true || !PIN.test(hello.pin)) {
+      throw new RockError(
+        `${addressLabel(
+          address,
+        )} answered, but it is not Rock it 0.3.0 or newer.`,
+        'notRockIt',
+      );
+    }
+    trusted = hello.pin;
   }
-  let body: Record<string, unknown> | null = null;
-  try {
-    body = (await response.json()) as Record<string, unknown>;
-  } catch {
-    // An Umbrel login page is HTML, not JSON.
-  }
+  const reply = await rockRequest(address, '/phone/pair', {
+    pin: trusted,
+    method: 'POST',
+    body: { code, name },
+  });
+  const body = reply.json;
   if (
-    response.ok &&
+    reply.status === 200 &&
     typeof body?.id === 'string' &&
     typeof body?.key === 'string'
   ) {
-    return { deviceId: body.id, key: body.key };
+    return { deviceId: body.id, key: body.key, pin: trusted };
   }
   switch (body?.error) {
     case 'code':
@@ -113,7 +117,7 @@ export async function pairWith(
       );
   }
   throw new RockError(
-    'Your Umbrel asked for a login. Update Zecky Rock it on the Umbrel to version 0.2.0 or newer.',
-    'login',
+    `${addressLabel(address)} answered, but it is not Rock it 0.3.0 or newer.`,
+    'notRockIt',
   );
 }

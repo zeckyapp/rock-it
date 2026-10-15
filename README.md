@@ -63,8 +63,11 @@ internet.
 
 Pairing: the page (behind the Umbrel login) shows a code that works once, for
 ten minutes, and dies after five wrong tries. The iPhone trades it at
-`/phone/pair` for its own key; only `/phone/*` skips the Umbrel login, and
-`/phone/status` answers only with a paired key. Keys are stored as SHA-256
+`/phone/pair` for its own key, and `/phone/status` answers only with a paired
+key. The iPhone app only talks to the Rock over HTTPS on port 8139, with a
+certificate the Rock makes on first start; the QR carries its SHA-256
+fingerprint, and the app trusts nothing else. Port 8138 (the page) stays
+behind the Umbrel login, and that HTTPS port answers nothing but `/phone/*`. Keys are stored as SHA-256
 hashes in the app's data folder, and the page can remove any iPhone. Tests:
 `cd status && python3 -m unittest`. Chain data lives in the app's data folder and is left out of Umbrel
 backups. It needs about 300 GB, and a first sync takes days on a Pi.

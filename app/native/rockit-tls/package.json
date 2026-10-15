@@ -1,0 +1,9 @@
+{
+  "name": "rockit-tls",
+  "version": "0.3.0",
+  "private": true,
+  "description": "HTTPS to the Rock that trusts only the Rock's own certificate, by its SHA-256 fingerprint.",
+  "main": "index.ts",
+  "react-native": "index.ts",
+  "license": "Apache-2.0"
+}

@@ -25,7 +25,7 @@ export async function checkRock(
   let best: RockError | null = null;
   for (const t of tries) {
     try {
-      return { ...t, status: await fetcher(t.address, key) };
+      return { ...t, status: await fetcher(t.address, key, rock.pin ?? '') };
     } catch (e) {
       const err =
         e instanceof RockError ? e : new RockError(String(e), 'unreachable');

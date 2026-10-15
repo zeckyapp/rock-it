@@ -14,18 +14,24 @@ jest.mock('react-native', () => ({
   Settings: { get: () => undefined, set: () => {} },
 }));
 jest.mock('react-native-keychain', () => ({}));
-
-function reply(status: number, body: unknown) {
-  return Promise.resolve({
-    ok: status >= 200 && status < 300,
-    status,
-    redirected: false,
-    json: () =>
-      typeof body === 'string'
-        ? Promise.reject(new Error('html'))
-        : Promise.resolve(body),
-  } as unknown as Response);
+const PIN = 'We6e8QC7FrbhTr9vp9oaP9bpNU9LNu9Erqxzb3NSxa8';
+const mockCalls: { url: string; options: Record<string, unknown> }[] = [];
+let mockAnswer: (
+  url: string,
+  options: Record<string, unknown>,
+) => Promise<{ status: number; body: string; pin: string }>;
+jest.mock('rockit-tls', () => ({
+  pinnedRequest: (url: string, options: Record<string, unknown>) => {
+    mockCalls.push({ url, options });
+    return mockAnswer(url, options);
+  },
+}));
+function reply(status: number, body: unknown, pin = PIN) {
+  return Promise.resolve({ status, body: JSON.stringify(body), pin });
 }
+beforeEach(() => {
+  mockCalls.length = 0;
+});
 
 const ready = {
   phase: 'ready',
@@ -46,7 +52,7 @@ describe('addresses', () => {
   it('reads what people type', () => {
     expect(parseAddress('192.168.1.20')).toEqual({
       host: '192.168.1.20',
-      port: 8138,
+      port: 8139,
     });
     expect(parseAddress(' http://Umbrel.local:8138/ ')).toEqual({
       host: 'umbrel.local',
@@ -98,9 +104,10 @@ describe('a Rock', () => {
       parseRock(JSON.stringify({ name: '', home: '192.168.1.20' })),
     ).toEqual({
       name: 'My Rock',
-      home: { host: '192.168.1.20', port: 8138 },
+      home: { host: '192.168.1.20', port: 8139 },
       away: null,
       deviceId: null,
+      pin: null,
     });
     expect(
       parseRock(JSON.stringify({ home: 'umbrel.local', deviceId: 'ab12' }))
@@ -120,7 +127,7 @@ describe('a Rock', () => {
     const reached = await checkRock(rock, 'k', async a => {
       seen.push(a.host);
       if (a.host === '192.168.1.20') {
-        throw new RockError('No answer', 'unreachable');
+        throw new RockError('No mockAnswer', 'unreachable');
       }
       return parseStatus(ready)!;
     });
@@ -136,7 +143,7 @@ describe('a Rock', () => {
       checkRock(rock, 'k', async a => {
         throw a.host === '192.168.1.20'
           ? new RockError('Login', 'login')
-          : new RockError('No answer', 'unreachable');
+          : new RockError('No mockAnswer', 'unreachable');
       }),
     ).rejects.toMatchObject({ kind: 'login' });
   });
@@ -152,75 +159,99 @@ describe('pairing', () => {
 
   it('reads the QR link, only for private addresses', () => {
     expect(
-      parsePairLink('rockit://pair?h=umbrel.local&p=8138&c=K7QM3XPA'),
+      parsePairLink(`rockit://pair?h=umbrel.local&c=K7QM3XPA&t=8139&k=${PIN}`),
     ).toEqual({
-      address: { host: 'umbrel.local', port: 8138 },
+      address: { host: 'umbrel.local', port: 8139 },
       code: 'K7QM3XPA',
+      pin: PIN,
     });
     expect(
-      parsePairLink('rockit://pair?h=100.101.102.103&p=8138&c=K7QM3XPA')
-        ?.address.host,
-    ).toBe('100.101.102.103');
+      parsePairLink('rockit://pair?h=100.101.102.103&c=K7QM3XPA')?.address,
+    ).toEqual({ host: '100.101.102.103', port: 8139 });
     expect(
       parsePairLink('rockit://pair?h=evil.example.com&c=K7QM3XPA'),
     ).toBeNull();
     expect(parsePairLink('rockit://pair?h=8.8.8.8&c=K7QM3XPA')).toBeNull();
     expect(parsePairLink('rockit://pair?h=umbrel.local&c=nope')).toBeNull();
+    expect(
+      parsePairLink('rockit://pair?h=umbrel.local&c=K7QM3XPA&k=short'),
+    ).toBeNull();
     expect(parsePairLink('https://umbrel.local/?c=K7QM3XPA')).toBeNull();
   });
 
-  it('trades the code for a key', async () => {
-    const calls: [string, RequestInit][] = [];
-    globalThis.fetch = jest.fn((url: string, init: RequestInit) => {
-      calls.push([url, init]);
-      return reply(200, { id: 'd1', key: 'secret' });
-    }) as unknown as typeof fetch;
+  it('pairs over HTTPS, trusting only the QR fingerprint', async () => {
+    mockAnswer = () => reply(200, { id: 'd1', key: 'secret' });
     const paired = await pairWith(
-      { host: 'umbrel.local', port: 8138 },
+      { host: 'umbrel.local', port: 8139 },
       'K7QM3XPA',
       'iPhone',
+      PIN,
     );
-    expect(paired).toEqual({ deviceId: 'd1', key: 'secret' });
-    expect(calls[0][0]).toBe('http://umbrel.local:8138/phone/pair');
-    expect(JSON.parse(String(calls[0][1].body))).toEqual({
+    expect(paired).toEqual({ deviceId: 'd1', key: 'secret', pin: PIN });
+    expect(mockCalls).toHaveLength(1);
+    expect(mockCalls[0].url).toBe('https://umbrel.local:8139/phone/pair');
+    expect(mockCalls[0].options.pin).toBe(PIN);
+    expect(JSON.parse(String(mockCalls[0].options.body))).toEqual({
       code: 'K7QM3XPA',
       name: 'iPhone',
     });
   });
 
-  it('explains a wrong code and an old Rock', async () => {
-    const at = { host: 'umbrel.local', port: 8138 };
-    globalThis.fetch = jest.fn(() => reply(403, { error: 'code' })) as never;
-    await expect(pairWith(at, 'K7QM3XPA', 'x')).rejects.toMatchObject({
+  it('with a typed code, learns the fingerprint once and keeps it', async () => {
+    mockAnswer = url =>
+      url.endsWith('/phone/hello')
+        ? reply(200, { rockit: true })
+        : reply(200, { id: 'd1', key: 'secret' });
+    const paired = await pairWith(
+      { host: 'umbrel.local', port: 8139 },
+      'K7QM3XPA',
+      'iPhone',
+      null,
+    );
+    expect(mockCalls.map(c => c.options.pin)).toEqual(['', PIN]);
+    expect(paired.pin).toBe(PIN);
+  });
+
+  it('explains a wrong code, a stranger and a different Rock', async () => {
+    const at = { host: 'umbrel.local', port: 8139 };
+    mockAnswer = () => reply(403, { error: 'code' });
+    await expect(pairWith(at, 'K7QM3XPA', 'x', PIN)).rejects.toMatchObject({
       kind: 'code',
     });
-    globalThis.fetch = jest.fn(() => reply(200, '<html>')) as never;
-    await expect(pairWith(at, 'K7QM3XPA', 'x')).rejects.toMatchObject({
-      kind: 'login',
+    mockAnswer = () => reply(200, { hello: 'world' });
+    await expect(pairWith(at, 'K7QM3XPA', 'x', null)).rejects.toMatchObject({
+      kind: 'notRockIt',
+    });
+    mockAnswer = () =>
+      Promise.reject(Object.assign(new Error('x'), { code: 'pin' }));
+    await expect(pairWith(at, 'K7QM3XPA', 'x', PIN)).rejects.toMatchObject({
+      kind: 'pin',
     });
   });
 
   it('sends the key and notices when the iPhone was removed', async () => {
-    const at = { host: 'umbrel.local', port: 8138 };
-    let headers: Record<string, string> = {};
-    globalThis.fetch = jest.fn((url: string, init: RequestInit) => {
-      headers = init.headers as Record<string, string>;
-      expect(url).toBe('http://umbrel.local:8138/phone/status');
-      return reply(200, {
-        ...ready,
-        privacy: { mode: 'private', inbound: false },
-      });
-    }) as never;
-    const status = await fetchStatus(at, 'secret');
-    expect(headers.Authorization).toBe('Bearer secret');
+    const at = { host: 'umbrel.local', port: 8139 };
+    mockAnswer = () =>
+      reply(200, { ...ready, privacy: { mode: 'private', inbound: false } });
+    const status = await fetchStatus(at, 'secret', PIN);
+    expect(mockCalls[0].url).toBe('https://umbrel.local:8139/phone/status');
+    expect(mockCalls[0].options.pin).toBe(PIN);
+    expect(
+      (mockCalls[0].options.headers as Record<string, string>).Authorization,
+    ).toBe('Bearer secret');
     expect(status.privacy).toEqual({ inbound: false });
 
-    globalThis.fetch = jest.fn(() =>
-      reply(401, { error: 'unpaired' }),
-    ) as never;
-    await expect(fetchStatus(at, 'old')).rejects.toMatchObject({
+    mockAnswer = () => reply(401, { error: 'unpaired' });
+    await expect(fetchStatus(at, 'old', PIN)).rejects.toMatchObject({
       kind: 'unpaired',
     });
+  });
+
+  it('asks to pair again when the Rock has no fingerprint yet', async () => {
+    await expect(
+      fetchStatus({ host: 'umbrel.local', port: 8139 }, 'k', ''),
+    ).rejects.toMatchObject({ kind: 'unpaired' });
+    expect(mockCalls).toHaveLength(0);
   });
 
   it('stops at "not paired" instead of trying the next address', async () => {

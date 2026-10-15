@@ -113,13 +113,16 @@ export function SetupScreen({ rock, link, onDone, onCancel }: Props) {
         // Pair through the address the code came from: the link's, or home.
         const target =
           link && a && isTailscale(link.address.host) ? a : h ?? (a as Address);
-        const fresh = await pairWith(target, clean, DEVICE_NAME);
+        // The QR's fingerprint; when re-pairing by hand, the one already kept.
+        const pin = link ? link.pin : rock?.pin ?? null;
+        const fresh = await pairWith(target, clean, DEVICE_NAME, pin);
         await saveKey(fresh.deviceId, fresh.key);
         saveRock({
           name: cleanName(name),
           home: h,
           away: a,
           deviceId: fresh.deviceId,
+          pin: fresh.pin,
         });
         onDone();
         return;
@@ -134,6 +137,7 @@ export function SetupScreen({ rock, link, onDone, onCancel }: Props) {
         home: h,
         away: a,
         deviceId,
+        pin: rock?.pin ?? null,
       };
       try {
         await checkRock(next, key);
@@ -204,7 +208,11 @@ export function SetupScreen({ rock, link, onDone, onCancel }: Props) {
               2. Point this iPhone’s Camera at the code on that page and tap the
               link.
             </Text>
-            <Text style={styles.step}>3. Or type the code below.</Text>
+            <Text style={styles.step}>
+              3. Or type the code below. Scanning is safer: the QR also carries
+              your Rock’s fingerprint, so the app can tell it apart from
+              anything else on your Wi-Fi.
+            </Text>
           </View>
         )}
 

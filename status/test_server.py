@@ -1,7 +1,10 @@
 """Tests for the Rock it status server's pairing. Run: python3 -m unittest -v"""
 
+import base64
+import hashlib
 import json
 import os
+import ssl
 import tempfile
 import threading
 import unittest
@@ -79,41 +82,85 @@ class PairingTest(unittest.TestCase):
 class HttpTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        server.pairing = server.Pairing(tempfile.mkdtemp())
+        folder = tempfile.mkdtemp()
+        server.pairing = server.Pairing(folder)
+        server.TLS = server.ensure_cert(folder)
+        assert server.TLS, "openssl could not make the certificate"
         server.status = lambda: {"phase": "starting", "node": {"reachable": False}}
-        cls.httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
-        cls.base = f"http://127.0.0.1:{cls.httpd.server_address[1]}"
-        threading.Thread(target=cls.httpd.serve_forever, daemon=True).start()
+        cls.page = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+        cls.phone = server.tls_server(server.TLS[0], server.TLS[1], 0)
+        cls.page_url = f"http://127.0.0.1:{cls.page.server_address[1]}"
+        cls.phone_url = f"https://127.0.0.1:{cls.phone.server_address[1]}"
+        for httpd in (cls.page, cls.phone):
+            threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        # Like the iPhone app: trust this one certificate, by its fingerprint.
+        cls.ctx = ssl.create_default_context()
+        cls.ctx.check_hostname = False
+        cls.ctx.verify_mode = ssl.CERT_NONE
 
     @classmethod
     def tearDownClass(cls):
-        cls.httpd.shutdown()
+        cls.page.shutdown()
+        cls.phone.shutdown()
 
-    def call(self, path, body=None, headers=None):
+    def call(self, url, body=None, headers=None):
         data = None if body is None else json.dumps(body).encode()
-        req = urllib.request.Request(self.base + path, data=data, headers=headers or {})
+        req = urllib.request.Request(url, data=data, headers=headers or {})
         if data is not None:
             req.add_header("Content-Type", "application/json")
+        ctx = self.ctx if url.startswith("https") else None
         try:
-            with urllib.request.urlopen(req) as r:
+            with urllib.request.urlopen(req, context=ctx) as r:
                 return r.status, json.load(r)
         except urllib.error.HTTPError as e:
             return e.code, json.load(e)
 
+    def test_fingerprint_matches_what_is_served(self):
+        host, port = self.phone.server_address[:2]
+        pem = ssl.get_server_certificate((host, port))
+        der = ssl.PEM_cert_to_DER_cert(pem)
+        pin = base64.urlsafe_b64encode(hashlib.sha256(der).digest()).rstrip(b"=")
+        self.assertEqual(pin.decode(), server.TLS[2])
+        info = self.call(self.page_url + "/api/pairing")[1]["tls"]
+        self.assertEqual(info["pin"], server.TLS[2])
+
+    def test_phone_only_over_https(self):
+        status, body = self.call(self.page_url + "/phone/pair", {"code": "x"})
+        self.assertEqual(status, 426)
+        self.assertEqual(body["tls"]["pin"], server.TLS[2])
+        self.assertEqual(self.call(self.page_url + "/phone/status")[0], 426)
+        # And the HTTPS port serves nothing but /phone/*.
+        req = urllib.request.Request(self.phone_url + "/api/pairing")
+        with self.assertRaises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(req, context=self.ctx)
+        self.assertEqual(e.exception.code, 404)
+
     def test_phone_flow(self):
-        self.assertEqual(self.call("/phone/status")[0], 401)
-        code = self.call("/api/pairing")[1]["code"]
-        status, body = self.call("/phone/pair", {"code": code, "name": "Test"})
+        self.assertEqual(self.call(self.phone_url + "/phone/hello")[1]["rockit"], True)
+        self.assertEqual(self.call(self.phone_url + "/phone/status")[0], 401)
+        code = self.call(self.page_url + "/api/pairing")[1]["code"]
+        status, body = self.call(
+            self.phone_url + "/phone/pair", {"code": code, "name": "Test"}
+        )
         self.assertEqual(status, 200)
         auth = {"Authorization": "Bearer " + body["key"]}
-        self.assertEqual(self.call("/phone/status", headers=auth)[0], 200)
+        self.assertEqual(self.call(self.phone_url + "/phone/status", headers=auth)[0], 200)
         # The page action needs its header.
-        self.assertEqual(self.call("/api/devices/remove", {"id": body["id"]})[0], 403)
+        self.assertEqual(
+            self.call(self.page_url + "/api/devices/remove", {"id": body["id"]})[0], 403
+        )
         status, res = self.call(
-            "/api/devices/remove", {"id": body["id"]}, {"X-Rock-It": "1"}
+            self.page_url + "/api/devices/remove", {"id": body["id"]}, {"X-Rock-It": "1"}
         )
         self.assertTrue(res["removed"])
-        self.assertEqual(self.call("/phone/status", headers=auth)[0], 401)
+        self.assertEqual(self.call(self.phone_url + "/phone/status", headers=auth)[0], 401)
+
+    def test_certificate_is_kept(self):
+        folder = tempfile.mkdtemp()
+        first = server.ensure_cert(folder)
+        self.assertEqual(server.ensure_cert(folder)[2], first[2])
+        mode = os.stat(first[1]).st_mode & 0o777
+        self.assertEqual(mode & 0o077, 0)
 
 
 if __name__ == "__main__":
