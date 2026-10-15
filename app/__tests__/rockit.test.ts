@@ -1,4 +1,9 @@
-import { isPrivate, isTailscale, parseAddress } from '../src/lib/address';
+import {
+  isPrivate,
+  isTailscale,
+  parseAddress,
+  shortLabel,
+} from '../src/lib/address';
 import { checkRock } from '../src/lib/check';
 import { parseRock } from '../src/lib/rock';
 import { cleanCode, pairWith, parsePairLink } from '../src/lib/pair';
@@ -64,6 +69,13 @@ describe('addresses', () => {
     });
     expect(parseAddress('192.168.1.20:99999')).toBeNull();
     expect(parseAddress('not an address')).toBeNull();
+  });
+
+  it('shows the address without the usual port', () => {
+    expect(shortLabel({ host: '192.168.1.8', port: 8139 })).toBe('192.168.1.8');
+    expect(shortLabel({ host: '192.168.1.8', port: 9000 })).toBe(
+      '192.168.1.8:9000',
+    );
   });
 
   it('knows home and Tailscale ranges', () => {

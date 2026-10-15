@@ -11,14 +11,15 @@ import { Button } from '../components/Button';
 import { Field } from '../components/Field';
 import {
   Address,
-  addressLabel,
   isPrivate,
   isTailscale,
   parseAddress,
+  shortLabel,
 } from '../lib/address';
 import { checkRock } from '../lib/check';
 import { clearKey, loadKey, saveKey } from '../lib/key';
-import { cleanCode, PairLink, pairWith } from '../lib/pair';
+import { scanQr } from 'rockit-tls';
+import { cleanCode, PairLink, pairWith, parsePairLink } from '../lib/pair';
 import { cleanName, MAX_NAME, Rock, saveRock } from '../lib/rock';
 import { RockError } from '../lib/status';
 import { fonts, makeStyles, space } from '../theme';
@@ -30,26 +31,28 @@ interface Props {
   link: PairLink | null;
   onDone: () => void;
   onCancel?: () => void;
+  /** A pairing link read with the in-app scanner. */
+  onLink: (link: PairLink) => void;
 }
 
 const DEVICE_NAME = Platform.OS === 'ios' && Platform.isPad ? 'iPad' : 'iPhone';
 
 function initialHome(rock: Rock | null, link: PairLink | null): string {
   if (link && !isTailscale(link.address.host)) {
-    return addressLabel(link.address);
+    return shortLabel(link.address);
   }
-  if (rock?.home) return addressLabel(rock.home);
+  if (rock?.home) return shortLabel(rock.home);
   return link ? '' : 'umbrel.local';
 }
 
 function initialAway(rock: Rock | null, link: PairLink | null): string {
   if (link && isTailscale(link.address.host)) {
-    return addressLabel(link.address);
+    return shortLabel(link.address);
   }
-  return rock?.away ? addressLabel(rock.away) : '';
+  return rock?.away ? shortLabel(rock.away) : '';
 }
 
-export function SetupScreen({ rock, link, onDone, onCancel }: Props) {
+export function SetupScreen({ rock, link, onDone, onCancel, onLink }: Props) {
   const styles = useStyles();
   const [name, setName] = useState(rock?.name ?? '');
   const [home, setHome] = useState(initialHome(rock, link));
@@ -93,6 +96,31 @@ export function SetupScreen({ rock, link, onDone, onCancel }: Props) {
       return null;
     }
     return { h, a };
+  }
+
+  async function scan() {
+    setError(null);
+    let text: string | null;
+    try {
+      text = await scanQr();
+    } catch (e) {
+      const reason = (e as { code?: unknown } | null)?.code;
+      setError(
+        reason === 'denied'
+          ? 'Camera access is off for Rock it. Turn it on in Settings, Rock it, or scan with the iPhone Camera app instead.'
+          : 'This device has no camera. Type the code instead.',
+      );
+      return;
+    }
+    if (text == null) return; // cancelled
+    const found = parsePairLink(text);
+    if (found == null) {
+      setError(
+        'That QR code is not a Rock it pairing code. Scan the one on your Umbrel’s Rock it page.',
+      );
+      return;
+    }
+    onLink(found);
   }
 
   async function submit() {
@@ -187,7 +215,7 @@ export function SetupScreen({ rock, link, onDone, onCancel }: Props) {
 
         {link ? (
           <Text style={styles.body}>
-            Your Umbrel at {addressLabel(link.address)} sent a pairing code. Tap
+            Your Umbrel at {shortLabel(link.address)} sent a pairing code. Tap
             Pair to give this iPhone its own key.
           </Text>
         ) : paired ? (
@@ -205,8 +233,7 @@ export function SetupScreen({ rock, link, onDone, onCancel }: Props) {
               1. On your Umbrel, open Zecky Rock it.
             </Text>
             <Text style={styles.step}>
-              2. Point this iPhone’s Camera at the code on that page and tap the
-              link.
+              2. Tap Scan and point at the QR code on that page.
             </Text>
             <Text style={styles.step}>
               3. Or type the code below. Scanning is safer: the QR also carries
@@ -215,6 +242,8 @@ export function SetupScreen({ rock, link, onDone, onCancel }: Props) {
             </Text>
           </View>
         )}
+
+        {link ? null : <Button label="Scan the QR code" onPress={scan} />}
 
         <View style={styles.fields}>
           <Field

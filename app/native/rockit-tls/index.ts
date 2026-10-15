@@ -19,6 +19,9 @@ interface Native {
 }
 
 const native = NativeModules.RockitTls as Native | undefined;
+const scanner = NativeModules.RockitScanner as
+  | { scan(): Promise<string | null> }
+  | undefined;
 
 /**
  * HTTPS that trusts only the certificate with this fingerprint (SHA-256 of
@@ -50,4 +53,19 @@ export function pinnedRequest(
     options.pin,
     options.timeoutMs ?? 8000,
   );
+}
+
+/**
+ * Opens a full-screen camera scanner. Resolves with the text in the QR code,
+ * or null when cancelled. Rejects with code "nocamera" or "denied".
+ */
+export function scanQr(): Promise<string | null> {
+  if (scanner == null) {
+    return Promise.reject(
+      Object.assign(new Error('The scanner is not built in.'), {
+        code: 'nocamera',
+      }),
+    );
+  }
+  return scanner.scan();
 }

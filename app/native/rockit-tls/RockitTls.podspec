@@ -12,7 +12,7 @@ Pod::Spec.new do |s|
   s.platforms    = { :ios => "15.1" }
   s.source       = { :git => "https://github.com/zeckyapp/rock-it.git", :tag => "v#{s.version}" }
   s.source_files = "ios/**/*.{h,m}"
-  s.frameworks   = "Security"
+  s.frameworks   = "Security", "AVFoundation"
 
   install_modules_dependencies(s)
 end

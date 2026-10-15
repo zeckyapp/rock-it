@@ -55,6 +55,7 @@ function App() {
             key={link ? `${link.address.host}-${link.code}` : 'setup'}
             rock={rock}
             link={link}
+            onLink={setLink}
             onDone={done}
             onCancel={rock || link ? done : undefined}
           />
