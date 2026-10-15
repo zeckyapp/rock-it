@@ -4,7 +4,7 @@ storage:
   dataRoot: data
 category: finance
 name: Zecky Rock it
-version: "0.3.3"
+version: "0.3.4"
 tagline: Your own Zcash node for Zecky Lock it and Zecky Pocket
 icon: https://raw.githubusercontent.com/zeckyapp/rock-it/main/status/icon.svg
 description: >-
@@ -28,6 +28,9 @@ description: >-
   server by Zingo Labs), with two small Rock it patches for speed on a
   Raspberry Pi.
 releaseNotes: >-
+  0.3.4: the iPhone app's encrypted connection now requires TLS 1.3.
+
+
   0.3.3: the status page image is pinned to its exact build.
 
 
