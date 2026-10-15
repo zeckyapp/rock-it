@@ -533,9 +533,13 @@ class PhoneHandler(Handler):
 
 def tls_server(cert, key, port):
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    # Every iPhone that runs the Rock it app speaks TLS 1.3.
+    context.minimum_version = ssl.TLSVersion.TLSv1_3
     context.load_cert_chain(cert, key)
     httpd = ThreadingHTTPServer(("0.0.0.0", port), PhoneHandler)
+    # A refused handshake (an old TLS version, a port scan) is not worth a
+    # stack trace in the logs.
+    httpd.handle_error = lambda request, client_address: None
     # The handshake happens on the first read, in the request's own thread,
     # so a slow client cannot hold up the others.
     httpd.socket = context.wrap_socket(
