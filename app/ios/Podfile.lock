@@ -1762,6 +1762,28 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - RockitTls (0.3.0):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-bridging
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - SocketRocket (0.7.1):
     - ReactNativeDependencies
   - Yoga (0.0.0):
@@ -1856,6 +1878,7 @@ DEPENDENCIES:
   - "RNCClipboard (from `../node_modules/@react-native-clipboard/clipboard`)"
   - RNKeychain (from `../node_modules/react-native-keychain`)
   - RNSVG (from `../node_modules/react-native-svg`)
+  - RockitTls (from `../node_modules/rockit-tls`)
   - SocketRocket (from `build/rndeps-facades/SocketRocket`)
   - Yoga (from `build/rncore-facades/Yoga`)
 
@@ -2035,6 +2058,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-keychain"
   RNSVG:
     :path: "../node_modules/react-native-svg"
+  RockitTls:
+    :path: "../node_modules/rockit-tls"
   SocketRocket:
     :path: build/rndeps-facades/SocketRocket
   Yoga:
@@ -2128,6 +2153,7 @@ SPEC CHECKSUMS:
   RNCClipboard: a4d3243922d75b241b7ab9c0f8b62995a601ff2b
   RNKeychain: 551d42b0ef53426f82551a0cc961cfa10ad33afa
   RNSVG: 6c9bcbf53822153be6f6c1484f6b0b57c0040d21
+  RockitTls: cec2c397ee057bfd0674e4a3d6b8716a0a064310
   SocketRocket: 37aec555668fb852ec12e3c0de59a86ca58f0871
   Yoga: d1c536142c5ff8ec8cd856ab2a7c227a1d875c8e
 
