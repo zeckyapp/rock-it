@@ -12,21 +12,28 @@ Two kinds of callers:
 
 - The page, behind the Umbrel login (`/`, `/api/...`). It shows the status,
   the pairing code and the paired iPhones, and can remove an iPhone.
-- The Rock it iPhone app (`/phone/...`), which Umbrel lets through without a
-  login. It pairs once with the short code shown on the page (or in its QR)
+- The Rock it iPhone app (`/phone/...`), only over HTTPS on its own port
+  (8139). It pairs once with the short code shown on the page (or in its QR)
   and gets its own key. After that it reads the status with that key. Without
   a key it gets nothing.
+
+The HTTPS certificate is the Rock's own, made on first start. The QR carries
+its SHA-256 fingerprint, and the iPhone app trusts that certificate and no
+other, so nobody on the network can read along or pose as the Rock.
 
 Keys are stored only as SHA-256 hashes. A pairing code lives in memory, is
 valid for ten minutes, works once and dies after five wrong tries.
 """
 
+import base64
 import hashlib
 import hmac
 import json
 import os
 import secrets
 import socket
+import ssl
+import subprocess
 import threading
 import time
 import urllib.request
@@ -38,6 +45,7 @@ WALLET_PORT = int(os.environ.get("WALLET_PORT", "8137"))
 DATA_DIR = os.environ.get("DATA_DIR", "/chain")
 PAIR_DIR = os.environ.get("PAIR_DIR", "/data")
 LISTEN_PORT = int(os.environ.get("PORT", "8080"))
+TLS_PORT = int(os.environ.get("TLS_PORT", "8139"))
 APP_VERSION = os.environ.get("APP_VERSION", "")
 # Whether other Zcash nodes can connect in on 8233. The Umbrel app does not
 # publish that port, so the node only connects out.
@@ -322,15 +330,71 @@ class Pairing:
             return True
 
 
+# --- HTTPS ----------------------------------------------------------------
+
+
+def b64url(data):
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+def fingerprint(cert_pem):
+    """SHA-256 of the certificate (DER), base64url: what the QR carries."""
+    return b64url(hashlib.sha256(ssl.PEM_cert_to_DER_cert(cert_pem)).digest())
+
+
+def ensure_cert(folder):
+    """The Rock's own certificate (EC P-256, ten years), made on first start.
+
+    Returns (cert path, key path, fingerprint), or None when it cannot be
+    made; the iPhone app then cannot connect, but the page still works.
+    """
+    tls = os.path.join(folder, "tls")
+    cert = os.path.join(tls, "cert.pem")
+    key = os.path.join(tls, "key.pem")
+    if not (os.path.exists(cert) and os.path.exists(key)):
+        old = os.umask(0o077)
+        try:
+            os.makedirs(tls, mode=0o700, exist_ok=True)
+            subprocess.run(
+                [
+                    "openssl", "req", "-x509", "-newkey", "ec",
+                    "-pkeyopt", "ec_paramgen_curve:prime256v1",
+                    "-nodes", "-days", "3650", "-subj", "/CN=Zecky Rock it",
+                    "-keyout", key, "-out", cert,
+                ],
+                check=True,
+                capture_output=True,
+                timeout=60,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        finally:
+            os.umask(old)
+    try:
+        with open(cert, encoding="ascii") as f:
+            return cert, key, fingerprint(f.read())
+    except (OSError, ValueError):
+        return None
+
+
+def tls_info():
+    return {"port": TLS_PORT, "pin": TLS[2]} if TLS else None
+
+
 pairing = None  # set in main()
+TLS = None  # (cert, key, fingerprint), set in main()
 
 
 # --- HTTP -----------------------------------------------------------------
 
 
 class Handler(BaseHTTPRequestHandler):
+    """The page and its API, behind the Umbrel login (plain HTTP on 8080)."""
+
     server_version = "RockIt"
     sys_version = ""
+    secure = False
+    timeout = 30  # seconds a connection may sit idle
 
     def send(self, code, body, ctype):
         self.send_response(code)
@@ -365,7 +429,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):  # noqa: N802 - http.server naming
         path = self.path_only()
-        if path in ("/", "/index.html"):
+        if path.startswith("/phone/"):
+            self.phone_get(path)
+        elif self.secure:
+            self.send(404, b"Not found", "text/plain")
+        elif path in ("/", "/index.html"):
             self.file("index.html", "text/html; charset=utf-8")
         elif path == "/icon.svg":
             self.file("icon.svg", "image/svg+xml")
@@ -376,12 +444,13 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/widget":
             self.send_json(widget())
         elif path == "/api/pairing":
-            self.send_json({**pairing.current_code(), "devices": pairing.listing()})
-        elif path == "/phone/status":
-            if pairing.check(self.headers.get("Authorization")) is None:
-                self.send_json({"error": "unpaired"}, 401)
-            else:
-                self.send_json(status())
+            self.send_json(
+                {
+                    **pairing.current_code(),
+                    "devices": pairing.listing(),
+                    "tls": tls_info(),
+                }
+            )
         else:
             self.send(404, b"Not found", "text/plain")
 
@@ -393,9 +462,11 @@ class Handler(BaseHTTPRequestHandler):
         if body is None:
             self.send_json({"error": "body"}, 400)
             return
-        if path == "/phone/pair":
-            code, value = pairing.pair(body.get("code", ""), body.get("name", ""))
-            self.send_json(value, code)
+        if path.startswith("/phone/"):
+            self.phone_post(path, body)
+            return
+        if self.secure:
+            self.send_json({"error": "not found"}, 404)
             return
         # The page's own actions. The custom header cannot be sent by another
         # site without a CORS preflight, which this server never allows.
@@ -403,11 +474,46 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json({"error": "forbidden"}, 403)
         elif path == "/api/pairing/new":
             self.send_json(
-                {**pairing.current_code(fresh=True), "devices": pairing.listing()}
+                {
+                    **pairing.current_code(fresh=True),
+                    "devices": pairing.listing(),
+                    "tls": tls_info(),
+                }
             )
         elif path == "/api/devices/remove":
             removed = pairing.remove(str(body.get("id", "")))
             self.send_json({"removed": removed, "devices": pairing.listing()})
+        else:
+            self.send_json({"error": "not found"}, 404)
+
+    # The iPhone app: HTTPS only, so the code and the key never travel in the
+    # clear. Over plain HTTP it is told where to go instead.
+
+    def plain_refused(self):
+        if self.secure:
+            return False
+        self.send_json({"error": "tls", "tls": tls_info()}, 426)
+        return True
+
+    def phone_get(self, path):
+        if self.plain_refused():
+            return
+        if path == "/phone/hello":
+            self.send_json({"rockit": True, "version": APP_VERSION})
+        elif path == "/phone/status":
+            if pairing.check(self.headers.get("Authorization")) is None:
+                self.send_json({"error": "unpaired"}, 401)
+            else:
+                self.send_json(status())
+        else:
+            self.send_json({"error": "not found"}, 404)
+
+    def phone_post(self, path, body):
+        if self.plain_refused():
+            return
+        if path == "/phone/pair":
+            code, value = pairing.pair(body.get("code", ""), body.get("name", ""))
+            self.send_json(value, code)
         else:
             self.send_json({"error": "not found"}, 404)
 
@@ -419,9 +525,32 @@ class Handler(BaseHTTPRequestHandler):
         pass  # keep the logs quiet; nothing here is worth keeping
 
 
+class PhoneHandler(Handler):
+    """Only /phone/*, over HTTPS on its own port (published to the network)."""
+
+    secure = True
+
+
+def tls_server(cert, key, port):
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.load_cert_chain(cert, key)
+    httpd = ThreadingHTTPServer(("0.0.0.0", port), PhoneHandler)
+    # The handshake happens on the first read, in the request's own thread,
+    # so a slow client cannot hold up the others.
+    httpd.socket = context.wrap_socket(
+        httpd.socket, server_side=True, do_handshake_on_connect=False
+    )
+    return httpd
+
+
 def main():
-    global pairing
+    global pairing, TLS
     pairing = Pairing(PAIR_DIR)
+    TLS = ensure_cert(PAIR_DIR)
+    if TLS:
+        phone = tls_server(TLS[0], TLS[1], TLS_PORT)
+        threading.Thread(target=phone.serve_forever, daemon=True).start()
     ThreadingHTTPServer(("0.0.0.0", LISTEN_PORT), Handler).serve_forever()
 
 

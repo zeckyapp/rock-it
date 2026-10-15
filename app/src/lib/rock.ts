@@ -3,15 +3,17 @@ import { Platform, Settings } from 'react-native';
 import { Address, addressLabel, parseAddress } from './address';
 
 /**
- * The owner's Rock: one address at home, one for when they are away, and
- * this phone's device id from pairing (the key itself is in the Keychain).
- * A Rock saved by 0.1 has no device id and must be paired.
+ * The owner's Rock: one address at home, one for when they are away, this
+ * phone's device id from pairing (the key itself is in the Keychain) and the
+ * fingerprint of the Rock's certificate. A Rock saved before 0.3 has no
+ * fingerprint and must be paired again.
  */
 export interface Rock {
   name: string;
   home: Address | null;
   away: Address | null;
   deviceId: string | null;
+  pin: string | null;
 }
 
 const KEY = 'rockit.rock';
@@ -37,6 +39,7 @@ export function parseRock(raw: unknown): Rock | null {
     home?: unknown;
     away?: unknown;
     deviceId?: unknown;
+    pin?: unknown;
   };
   const home = typeof v.home === 'string' ? parseAddress(v.home) : null;
   const away = typeof v.away === 'string' ? parseAddress(v.away) : null;
@@ -46,6 +49,7 @@ export function parseRock(raw: unknown): Rock | null {
     home,
     away,
     deviceId: typeof v.deviceId === 'string' ? v.deviceId : null,
+    pin: typeof v.pin === 'string' && v.pin.length > 0 ? v.pin : null,
   };
 }
 
@@ -79,6 +83,7 @@ export function saveRock(rock: Rock | null): void {
                 home: rock.home && addressLabel(rock.home),
                 away: rock.away && addressLabel(rock.away),
                 deviceId: rock.deviceId,
+                pin: rock.pin,
               }),
       });
     }

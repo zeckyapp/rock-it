@@ -4,7 +4,7 @@ storage:
   dataRoot: data
 category: finance
 name: Zecky Rock it
-version: "0.2.0"
+version: "0.3.0"
 tagline: Your own Zcash node for Zecky Lock it and Zecky Pocket
 icon: https://raw.githubusercontent.com/zeckyapp/rock-it/main/status/icon.svg
 description: >-
@@ -28,10 +28,10 @@ description: >-
   server by Zingo Labs), with two small Rock it patches for speed on a
   Raspberry Pi.
 releaseNotes: >-
-  Pair the Rock it iPhone app by scanning the code on this page. Each iPhone
-  gets its own key, and you can remove an iPhone here at any time. Without a
-  key, nothing can read your Rock: the open status from 0.1.1 is closed. After
-  updating, pair your iPhone again.
+  The Rock it iPhone app now talks to your Rock over an encrypted connection
+  (HTTPS on port 8139) with your Rock's own certificate. The QR code carries
+  its fingerprint, so the app trusts your Rock and nothing else. Update the
+  iPhone app to 0.3.0 and pair it again.
 
 developer: Zecky
 website: https://zecky.app

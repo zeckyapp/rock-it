@@ -5,15 +5,13 @@ services:
     environment:
       APP_HOST: zecky-rock-it_status_1
       APP_PORT: 8080
-      # Only the Rock it iPhone app's paths skip the Umbrel login: /phone/pair
-      # (needs the code from the page) and /phone/status (needs the key from
-      # pairing). The page and /api/* stay behind the login.
-      PROXY_AUTH_WHITELIST: "/phone/*"
+      # Everything on this port stays behind the Umbrel login. The iPhone app
+      # uses its own HTTPS port (8139) instead.
 
   # Status and connection page (the app's web UI and home-screen widget).
   status:
-    # Pin to the digest once the 0.2.0 image is built (Status image workflow).
-    image: ghcr.io/zeckyapp/rockit-status:0.2.0
+    # Pin to the digest once the 0.3.0 image is built (Status image workflow).
+    image: ghcr.io/zeckyapp/rockit-status:0.3.0
     user: "1000:1000"
     restart: on-failure
     environment:
@@ -23,10 +21,15 @@ services:
       APP_VERSION: "${APP_VERSION}"
       DATA_DIR: /chain
       PAIR_DIR: /data
+      TLS_PORT: "${APP_ZECKY_ROCK_IT_PHONE_PORT}"
       # The node's peer port (8233) is not published: it only connects out.
       NODE_INBOUND: "false"
+    ports:
+      # The Rock it iPhone app, HTTPS with the Rock's own certificate. Only
+      # pairing and the status (with a paired key) answer here.
+      - "${APP_ZECKY_ROCK_IT_PHONE_PORT}:${APP_ZECKY_ROCK_IT_PHONE_PORT}"
     volumes:
-      # Paired iPhones (key hashes only).
+      # Paired iPhones (key hashes only) and the HTTPS certificate.
       - ${APP_DATA_DIR}/data/rockit:/data
       # Read-only, only to show the free space on the drive.
       - ${APP_DATA_DIR}/data/zakura:/chain:ro

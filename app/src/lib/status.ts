@@ -1,4 +1,5 @@
 import { Address, addressLabel } from './address';
+import { rockRequest } from './https';
 
 /** What the Rock it status page reports (status/server.py, /api/status). */
 export interface RockStatus {
@@ -61,62 +62,49 @@ export function parseStatus(raw: unknown): RockStatus | null {
 export class RockError extends Error {
   constructor(
     message: string,
-    readonly kind: 'unreachable' | 'login' | 'notRockIt' | 'unpaired' | 'code',
+    readonly kind:
+      | 'unreachable'
+      | 'login'
+      | 'notRockIt'
+      | 'unpaired'
+      | 'code'
+      | 'pin',
   ) {
     super(message);
   }
 }
 
 /**
- * Asks one address for the status, with this phone's key from pairing.
- * Throws a RockError.
+ * Asks one address for the status over HTTPS, with this phone's key from
+ * pairing and the Rock's certificate fingerprint. Throws a RockError.
  */
 export async function fetchStatus(
   address: Address,
   key: string,
-  timeoutMs = 5000,
+  pin: string,
+  timeoutMs = 6000,
 ): Promise<RockStatus> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  let response: Response;
-  try {
-    response = await fetch(`http://${addressLabel(address)}/phone/status`, {
-      headers: { Accept: 'application/json', Authorization: `Bearer ${key}` },
-      signal: controller.signal,
-    });
-  } catch {
+  if (!pin) {
     throw new RockError(
-      `No answer from ${addressLabel(address)}.`,
-      'unreachable',
+      'Pair this iPhone again to switch to the encrypted connection.',
+      'unpaired',
     );
-  } finally {
-    clearTimeout(timer);
   }
-  let body: unknown = null;
-  try {
-    body = await response.json();
-  } catch {
-    // An Umbrel login page is HTML, not JSON.
-  }
-  const status = response.ok ? parseStatus(body) : null;
+  const reply = await rockRequest(address, '/phone/status', {
+    pin,
+    headers: { Authorization: `Bearer ${key}` },
+    timeoutMs,
+  });
+  const status = reply.status === 200 ? parseStatus(reply.json) : null;
   if (status != null) return status;
-  if (
-    response.status === 401 &&
-    (body as { error?: unknown } | null)?.error === 'unpaired'
-  ) {
+  if (reply.status === 401 && reply.json?.error === 'unpaired') {
     throw new RockError(
       'This iPhone is no longer paired with your Rock. Pair it again with the code on your Umbrel.',
       'unpaired',
     );
   }
-  if (response.status === 401 || response.redirected || body == null) {
-    throw new RockError(
-      'Your Umbrel asked for a login. Update Zecky Rock it on the Umbrel to version 0.2.0 or newer.',
-      'login',
-    );
-  }
   throw new RockError(
-    `${addressLabel(address)} answered, but it is not Rock it.`,
+    `${addressLabel(address)} answered, but it is not Rock it 0.3.0 or newer.`,
     'notRockIt',
   );
 }

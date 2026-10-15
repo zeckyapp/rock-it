@@ -91,7 +91,8 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
         <button type="button" class="quiet" id="newcode">New code</button>
       </div>
     </div>
-    <p class="note">The code works once, for ten minutes. Each iPhone gets its own key; remove one here and it can no longer read your Rock.</p>
+    <p class="note">The code works once, for ten minutes. Each iPhone gets its own key; remove one here and it can no longer read your Rock. The app talks to your Rock over its own encrypted connection: the QR code carries your Rock's fingerprint, so the app trusts nothing else.</p>
+    <p class="note" id="notls" hidden><strong>The encrypted connection is not ready.</strong> Restart Zecky Rock it on your Umbrel; the iPhone app cannot pair until it is.</p>
     <ul class="devices" id="devices"></ul>
   </section>
 
@@ -163,16 +164,17 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
 
   var pairState=null;
   function esc(t){return String(t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
-  function pairLink(code){
-    var p=location.port||(location.protocol==='https:'?'443':'80');
-    return 'rockit://pair?h='+encodeURIComponent(host)+'&p='+p+'&c='+code;
+  function pairLink(code,tls){
+    var link='rockit://pair?h='+encodeURIComponent(host)+'&c='+code;
+    if(tls)link+='&t='+tls.port+'&k='+tls.pin;
+    return link;
   }
   function renderPair(st){
     pairState=st;
     var c=st.code;
     $('code').textContent=c.slice(0,4)+'-'+c.slice(4);
     if(typeof qrcode==='function'){
-      var q=qrcode(0,'M');q.addData(pairLink(c));q.make();
+      var q=qrcode(0,'M');q.addData(pairLink(c,st.tls));q.make();
       $('qr').innerHTML=q.createSvgTag({cellSize:4,margin:0,scalable:true});
     }
     var list=st.devices||[];
@@ -180,6 +182,7 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
       var seen=d.seen?new Date(d.seen*1000).toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'}):'';
       return '<li><span>'+esc(d.name)+' <small>· last seen '+esc(seen)+'</small></span><button type="button" class="quiet" data-id="'+esc(d.id)+'">Remove</button></li>';
     }).join(''):'<li><span><small>No iPhones paired yet.</small></span></li>';
+    $('notls').hidden=!!st.tls;
     showExpiry();
   }
   function showExpiry(){
@@ -198,7 +201,7 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
   $('devices').addEventListener('click',function(e){
     var id=e.target&&e.target.getAttribute('data-id');if(!id)return;
     if(!confirm('Remove this iPhone? It will need to pair again.'))return;
-    post('api/devices/remove',{id:id}).then(function(r){renderPair({code:pairState.code,expires:pairState.expires,devices:r.devices});});
+    post('api/devices/remove',{id:id}).then(function(r){renderPair({code:pairState.code,expires:pairState.expires,tls:pairState.tls,devices:r.devices});});
   });
   setInterval(function(){showExpiry();},15000);
   setInterval(loadPair,30000);

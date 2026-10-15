@@ -1,5 +1,7 @@
 /** Where Rock it's status page answers on the Umbrel (the app's port). */
 export const STATUS_PORT = 8138;
+/** Where the Rock answers this app: HTTPS with its own certificate. */
+export const PHONE_PORT = 8139;
 /** Where Lock it and Pocket connect (Zaino). */
 export const WALLET_PORT = 8137;
 
@@ -9,8 +11,9 @@ export interface Address {
 }
 
 /**
- * Reads what the user typed: "192.168.1.20", "192.168.1.20:8138",
- * "http://umbrel.local:8138/". Returns null when it is not an address.
+ * Reads what the user typed: "192.168.1.20", "192.168.1.20:8139",
+ * "https://umbrel.local/". Returns null when it is not an address. Without a
+ * port it is the Rock's HTTPS port for this app.
  */
 export function parseAddress(text: string): Address | null {
   const cleaned = text
@@ -21,7 +24,7 @@ export function parseAddress(text: string): Address | null {
     cleaned,
   );
   if (match == null) return null;
-  const port = match[3] == null ? STATUS_PORT : Number(match[3]);
+  const port = match[3] == null ? PHONE_PORT : Number(match[3]);
   if (port < 1 || port > 65535) return null;
   return { host: match[1].toLowerCase(), port };
 }
