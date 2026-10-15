@@ -7,7 +7,12 @@ import {
 } from 'react-native';
 import { Button } from '../components/Button';
 import { Field } from '../components/Field';
-import { addressLabel, isTailscale, parseAddress } from '../lib/address';
+import {
+  addressLabel,
+  isPrivate,
+  isTailscale,
+  parseAddress,
+} from '../lib/address';
 import { checkRock } from '../lib/check';
 import { cleanName, MAX_NAME, Rock, saveRock } from '../lib/rock';
 import { RockError } from '../lib/status';
@@ -42,6 +47,14 @@ export function SetupScreen({ rock, onDone, onCancel }: Props) {
     }
     if (h == null && a == null) {
       setError('Enter at least one address for your Rock.');
+      return null;
+    }
+    // Rock it only talks to the owner's own network (plain http, see
+    // NSAllowsArbitraryLoads in Info.plist), never to the internet.
+    if (h != null && !isPrivate(h.host)) {
+      setError(
+        'Use your Umbrel’s address on your home network, for example 192.168.1.20 or umbrel.local.',
+      );
       return null;
     }
     if (a != null && !isTailscale(a.host)) {
