@@ -90,3 +90,8 @@ jobs:
             -t "$IMAGE:$VERSION" -t "$IMAGE:latest" \
             $(printf "$IMAGE@sha256:%s " *)
           docker buildx imagetools inspect "$IMAGE:$VERSION"
+      - name: Report the digest to pin
+        run: |
+          digest=$(docker buildx imagetools inspect "$IMAGE:$VERSION" --format '{{json .Manifest}}' | jq -r .digest)
+          echo "::notice title=Pin this digest::$IMAGE:$VERSION@$digest"
+          echo "Pin in zecky-rock-it/docker-compose.yml: \`$IMAGE:$VERSION@$digest\`" >> "$GITHUB_STEP_SUMMARY"
