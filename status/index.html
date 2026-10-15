@@ -39,6 +39,7 @@ button:focus-visible{outline:2px solid var(--gold-hi);outline-offset:3px}
 ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
 .note{margin:12px 0 0;font-size:14px;color:var(--faint)}
 .note strong{color:var(--paper);font-weight:500}
+.for{display:inline-block;margin:0 0 14px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);font-size:12px;letter-spacing:.06em;color:var(--gold)}
 .pair{display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:center}
 .qr{background:var(--paper);border-radius:12px;padding:12px;width:188px;height:188px;display:flex;align-items:center;justify-content:center}
 .qr svg{width:164px;height:164px;display:block}
@@ -82,10 +83,11 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
 
   <section class="card">
     <h2>Pair the Rock it app</h2>
+    <span class="for">For the Rock it iPhone app · port <span class="tlsport">8139</span>, encrypted</span>
     <div class="pair">
       <div class="qr" id="qr" aria-label="Pairing code as a QR code" role="img"></div>
       <div>
-        <p style="margin:0">In the Rock it iPhone app, tap <em>Scan</em> and point it here. Or type this code:</p>
+        <p style="margin:0">Point your iPhone's Camera at this QR code and tap the link. Or, in the Rock it app, type this code with the address <strong class="hostonly">your-umbrel-ip</strong> (no port needed):</p>
         <p class="code" id="code" style="margin:8px 0">––––-––––</p>
         <p class="note" style="margin:0 0 12px" id="expires">&nbsp;</p>
         <button type="button" class="quiet" id="newcode">New code</button>
@@ -97,8 +99,9 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
   </section>
 
   <section class="card">
-    <h2>Connect Zecky</h2>
-    <p style="margin:0">Server address for your phone:</p>
+    <h2>Connect Lock it and Pocket</h2>
+    <span class="for">For your Zecky wallets · port <span class="port">8137</span></span>
+    <p style="margin:0">Wallet server address. Not for the Rock it app.</p>
     <div class="addr"><code id="address">–</code><button type="button" id="copy">Copy</button></div>
     <ol>
       <li>Open Zecky Lock it or Zecky Pocket.</li>
@@ -107,7 +110,7 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
       <li>Tap <em>Check, save and use</em>.</li>
     </ol>
     <p class="note" id="hostnote" hidden><strong>Use the number, not the name.</strong> Zecky needs your Umbrel's IP address, such as 192.168.1.20. Open this page through that address, or find it in your router or in Umbrel's settings.</p>
-    <p class="note"><strong>Away from home?</strong> Install Tailscale on your Umbrel and on your phone, then add a second server with your Umbrel's Tailscale address (it starts with 100.) and port <span class="port">8137</span>.</p>
+    <p class="note"><strong>Away from home?</strong> Install Tailscale on your Umbrel and on your phone, then add a second server in each wallet with your Umbrel's Tailscale address (it starts with 100.) and port <span class="port">8137</span>.</p>
     <p class="note">The wallet port is only open inside your home network. Your router does not forward it, so it is not reachable from the internet.</p>
   </section>
 
@@ -127,6 +130,7 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
 
   function showAddress(){
     $('address').textContent=(isIp?host:'your-umbrel-ip')+':'+port;
+    Array.prototype.forEach.call(document.querySelectorAll('.hostonly'),function(el){el.textContent=isIp?host:'your-umbrel-ip';});
     $('hostnote').hidden=isIp;
     Array.prototype.forEach.call(document.querySelectorAll('.port'),function(el){el.textContent=port;});
   }
@@ -147,7 +151,7 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
     if(s.phase==='starting'){head='Starting';sub='The Zcash node is starting. This takes a minute.';}
     else if(s.phase==='syncing'){head='Syncing '+pct.toFixed(1)+'%';sub='Your node is downloading and checking the Zcash chain. A full sync takes days on a Raspberry Pi; you can close this page.';}
     else if(s.phase==='opening'){head='Almost ready';sub='The node is in sync. The wallet server is opening its port.';}
-    else{head='Ready';sub='Your node is in sync. Connect Zecky below.';}
+    else{head='Ready';sub='Your node is in sync. Connect your wallets below.';}
     $('headline').innerHTML=head+'<span>.</span>';
     $('sub').textContent=sub;
     var bar=$('bar');bar.firstElementChild.style.width=(s.phase==='ready'||s.phase==='opening'?100:pct)+'%';
@@ -183,6 +187,7 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
       return '<li><span>'+esc(d.name)+' <small>· last seen '+esc(seen)+'</small></span><button type="button" class="quiet" data-id="'+esc(d.id)+'">Remove</button></li>';
     }).join(''):'<li><span><small>No iPhones paired yet.</small></span></li>';
     $('notls').hidden=!!st.tls;
+    if(st.tls)Array.prototype.forEach.call(document.querySelectorAll('.tlsport'),function(el){el.textContent=st.tls.port;});
     showExpiry();
   }
   function showExpiry(){
