@@ -544,8 +544,31 @@ def tls_server(cert, key, port):
     return httpd
 
 
+# The user the server runs as. It starts as root only to give the data folder
+# to this user (Docker makes a missing folder owned by root), then drops to it.
+RUN_AS = int(os.environ.get("RUN_AS", "1000"))
+
+
+def own_and_drop(folder, uid=RUN_AS):
+    if os.geteuid() != 0:
+        return
+    try:
+        os.makedirs(folder, exist_ok=True)
+        for root, dirs, files in os.walk(folder):
+            for name in [root] + [os.path.join(root, n) for n in dirs + files]:
+                os.lchown(name, uid, uid)
+    except OSError:
+        pass  # the server still starts; pairing then lives in memory
+    os.setgroups([])
+    os.setgid(uid)
+    os.setuid(uid)
+    if os.geteuid() == 0:
+        raise SystemExit("could not drop root")
+
+
 def main():
     global pairing, TLS
+    own_and_drop(PAIR_DIR)
     pairing = Pairing(PAIR_DIR)
     TLS = ensure_cert(PAIR_DIR)
     if TLS:
