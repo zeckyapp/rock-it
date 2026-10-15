@@ -32,6 +32,11 @@ export function parseAddress(text: string): Address | null {
   return { host: match[1].toLowerCase(), port };
 }
 
+/** How an address is shown: without the port when it is the Rock's usual one. */
+export function shortLabel(a: Address): string {
+  return a.port === PHONE_PORT ? a.host : addressLabel(a);
+}
+
 export function addressLabel(a: Address): string {
   return `${a.host}:${a.port}`;
 }

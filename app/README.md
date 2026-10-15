@@ -4,9 +4,10 @@ The iPhone app for Rock it, the Zcash node at home. It shows how the node is
 doing (sync, peers, drive, whether wallets can connect) and the address to
 enter in Zecky Lock it and Zecky Pocket.
 
-It pairs once with the Rock it app on the Umbrel: point the iPhone Camera at
-the QR code on the Rock it page (a `rockit://pair` link that opens this app),
-or type the eight-character code. Pairing gives this iPhone its own key, kept
+It pairs once with the Rock it app on the Umbrel: tap Scan in the app (or
+point the iPhone Camera at the QR code on the Rock it page; it is a
+`rockit://pair` link that opens this app), or type the eight-character code.
+The scanner uses Apple's own camera framework and keeps nothing. Pairing gives this iPhone its own key, kept
 in the Keychain (this device only, never in backups). After that it reads
 `/phone/status` with that key: first at the home address, then at the
 Tailscale address. No wallet keys, no funds, no other servers. The Umbrel page
@@ -59,6 +60,6 @@ npx tsc --noEmit && npx eslint App.tsx src __tests__ && npx jest
 | `src/lib/pair.ts` | The QR link, the code, and trading it for a key |
 | `src/lib/key.ts` | This iPhone's key (iOS Keychain) |
 | `src/lib/https.ts` | Requests to the Rock over pinned HTTPS |
-| `native/rockit-tls/` | The native module that checks the Rock's fingerprint |
+| `native/rockit-tls/` | Native code: HTTPS that checks the Rock's fingerprint, and the QR scanner |
 | `src/screens/` | Setup and status screens |
 | `assets/icon/` | App icon (`rock-it-icon.svg`, rendered to 1024 px) |
