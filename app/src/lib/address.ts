@@ -24,7 +24,10 @@ export function parseAddress(text: string): Address | null {
     cleaned,
   );
   if (match == null) return null;
-  const port = match[3] == null ? PHONE_PORT : Number(match[3]);
+  let port = match[3] == null ? PHONE_PORT : Number(match[3]);
+  // The wallet port (8137) and the page (8138) are on the same Umbrel; this
+  // app always talks to the Rock on its own port.
+  if (port === WALLET_PORT || port === STATUS_PORT) port = PHONE_PORT;
   if (port < 1 || port > 65535) return null;
   return { host: match[1].toLowerCase(), port };
 }

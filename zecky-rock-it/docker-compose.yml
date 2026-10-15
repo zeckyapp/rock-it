@@ -10,9 +10,11 @@ services:
 
   # Status and connection page (the app's web UI and home-screen widget).
   status:
-    # Pin to the digest once the 0.3.0 image is built (Status image workflow).
-    image: ghcr.io/zeckyapp/rockit-status:0.3.0
-    user: "1000:1000"
+    # Pin to the digest once the 0.3.1 image is built (Status image workflow).
+    image: ghcr.io/zeckyapp/rockit-status:0.3.1
+    # Starts as root only to give its data folder to user 1000 (Docker makes a
+    # missing folder owned by root), then drops to 1000 before serving.
+    user: "0:0"
     restart: on-failure
     environment:
       ZAKURA_RPC: "http://${APP_ZECKY_ROCK_IT_ZAKURA_IP}:8232"

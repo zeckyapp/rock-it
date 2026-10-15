@@ -56,7 +56,11 @@ describe('addresses', () => {
     });
     expect(parseAddress(' http://Umbrel.local:8138/ ')).toEqual({
       host: 'umbrel.local',
-      port: 8138,
+      port: 8139,
+    });
+    expect(parseAddress('192.168.1.8:8137')).toEqual({
+      host: '192.168.1.8',
+      port: 8139,
     });
     expect(parseAddress('192.168.1.20:99999')).toBeNull();
     expect(parseAddress('not an address')).toBeNull();
