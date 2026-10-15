@@ -11,6 +11,7 @@ import {
 import { ProgressRing } from '../components/ProgressRing';
 import { Address, WALLET_PORT } from '../lib/address';
 import { checkRock, Reached } from '../lib/check';
+import { loadKey } from '../lib/key';
 import { Rock } from '../lib/rock';
 import { formatGB, RockError, summarize } from '../lib/status';
 import { fonts, makeStyles, space, useColors } from '../theme';
@@ -44,7 +45,14 @@ export function StatusScreen({ rock, onEdit }: Props) {
     if (running.current) return;
     running.current = true;
     try {
-      const r = await checkRock(rock);
+      const key = rock.deviceId != null ? await loadKey() : null;
+      if (key == null) {
+        throw new RockError(
+          'This iPhone is not paired with your Rock yet. Pair it with the code on your Umbrel.',
+          'unpaired',
+        );
+      }
+      const r = await checkRock(rock, key);
       setReached(r);
       setError(null);
     } catch (e) {
@@ -131,10 +139,7 @@ export function StatusScreen({ rock, onEdit }: Props) {
       </View>
 
       <View style={styles.hero}>
-        <ProgressRing
-          progress={summary?.progress ?? 0}
-          muted={error != null}
-        />
+        <ProgressRing progress={summary?.progress ?? 0} muted={error != null} />
         <View style={styles.heroText} pointerEvents="none">
           <Text
             style={[styles.headline, summary?.tone === 'ok' && styles.live]}
@@ -147,10 +152,17 @@ export function StatusScreen({ rock, onEdit }: Props) {
       </View>
 
       <Text style={styles.detail} accessibilityLiveRegion="polite">
-        {error
-          ? error.message
-          : summary?.detail ?? 'Knocking on your Rock.'}
+        {error ? error.message : summary?.detail ?? 'Knocking on your Rock.'}
       </Text>
+      {error?.kind === 'unpaired' ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onEdit}
+          style={({ pressed }) => [styles.copy, pressed && styles.dim]}
+        >
+          <Text style={styles.copyValue}>Pair again</Text>
+        </Pressable>
+      ) : null}
       {error?.kind === 'unreachable' ? (
         <Text style={styles.help}>
           {rock.away
@@ -175,6 +187,16 @@ export function StatusScreen({ rock, onEdit }: Props) {
               value={`${formatGB(status.disk.free)} free of ${formatGB(
                 status.disk.total,
               )}`}
+            />
+          ) : null}
+          {status.privacy ? (
+            <Row
+              label="Privacy"
+              value={
+                status.privacy.inbound
+                  ? 'Open to other nodes'
+                  : 'Private, connects out only'
+              }
             />
           ) : null}
           <Row
@@ -213,9 +235,7 @@ export function StatusScreen({ rock, onEdit }: Props) {
       </View>
 
       {checkedAt ? (
-        <Text style={styles.footer}>
-          Checked {ago(Date.now() - checkedAt)}
-        </Text>
+        <Text style={styles.footer}>Checked {ago(Date.now() - checkedAt)}</Text>
       ) : null}
     </ScrollView>
   );

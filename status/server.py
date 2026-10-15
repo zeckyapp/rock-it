@@ -1,16 +1,31 @@
-"""Rock it status page.
+"""Rock it status page and pairing.
 
 A small web server for the Umbrel app: it shows how far the Zcash node
 (Zakura) is, whether the wallet server (Zaino) accepts wallets, and how to
 connect Zecky Lock it and Zecky Pocket. Python standard library only.
 
-It only reads: one fixed set of RPC calls to the node, a TCP check on the
+It only reads from the node: one fixed set of RPC calls, a TCP check on the
 wallet port and the free space on the data drive. No request data is passed
 on to the node.
+
+Two kinds of callers:
+
+- The page, behind the Umbrel login (`/`, `/api/...`). It shows the status,
+  the pairing code and the paired iPhones, and can remove an iPhone.
+- The Rock it iPhone app (`/phone/...`), which Umbrel lets through without a
+  login. It pairs once with the short code shown on the page (or in its QR)
+  and gets its own key. After that it reads the status with that key. Without
+  a key it gets nothing.
+
+Keys are stored only as SHA-256 hashes. A pairing code lives in memory, is
+valid for ten minutes, works once and dies after five wrong tries.
 """
 
+import hashlib
+import hmac
 import json
 import os
+import secrets
 import socket
 import threading
 import time
@@ -21,14 +36,30 @@ ZAKURA_RPC = os.environ.get("ZAKURA_RPC", "http://zakura:8232")
 ZAINO_ADDR = os.environ.get("ZAINO_ADDR", "zaino:8137")
 WALLET_PORT = int(os.environ.get("WALLET_PORT", "8137"))
 DATA_DIR = os.environ.get("DATA_DIR", "/chain")
+PAIR_DIR = os.environ.get("PAIR_DIR", "/data")
 LISTEN_PORT = int(os.environ.get("PORT", "8080"))
 APP_VERSION = os.environ.get("APP_VERSION", "")
+# Whether other Zcash nodes can connect in on 8233. The Umbrel app does not
+# publish that port, so the node only connects out.
+NODE_INBOUND = os.environ.get("NODE_INBOUND", "false").lower() == "true"
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CACHE_SECONDS = 5
 
+CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # no 0/O, 1/I/L
+CODE_LENGTH = 8
+CODE_SECONDS = 10 * 60
+CODE_TRIES = 5
+MAX_DEVICES = 10
+MAX_NAME = 40
+MAX_BODY = 2048
+SEEN_EVERY = 60
+
 _lock = threading.Lock()
 _cache = {"at": 0.0, "value": None}
+
+
+# --- The node -------------------------------------------------------------
 
 
 def rpc(method, params=None, timeout=4):
@@ -94,6 +125,12 @@ def node():
     }
 
 
+def privacy():
+    if NODE_INBOUND:
+        return {"mode": "supporter", "inbound": True}
+    return {"mode": "private", "inbound": False}
+
+
 def status():
     with _lock:
         now = time.time()
@@ -114,14 +151,11 @@ def status():
             "node": n,
             "walletServer": {"open": wallets, "port": WALLET_PORT},
             "disk": disk(),
+            "privacy": privacy(),
             "version": APP_VERSION,
         }
         _cache.update(at=now, value=value)
         return value
-
-
-def gb(n):
-    return f"{n / 1e9:,.0f} GB"
 
 
 def widget():
@@ -149,6 +183,151 @@ def widget():
     }
 
 
+# --- Pairing --------------------------------------------------------------
+
+
+def clean_code(text):
+    """'abcd-efgh' -> 'ABCDEFGH'. Ignores spaces and dashes."""
+    return "".join(c for c in str(text).upper() if c.isalnum())
+
+
+def clean_name(text):
+    name = "".join(c for c in str(text) if c.isprintable()).strip()[:MAX_NAME]
+    return name or "iPhone"
+
+
+def key_hash(key):
+    return hashlib.sha256(key.encode()).hexdigest()
+
+
+class Pairing:
+    """Paired iPhones (on disk) and the current pairing code (in memory)."""
+
+    def __init__(self, folder, clock=time.time):
+        self.path = os.path.join(folder, "devices.json")
+        self.clock = clock
+        self.lock = threading.Lock()
+        self.code = None  # {"value", "expires", "tries"}
+        self.devices = self._load()
+
+    # Storage
+
+    def _load(self):
+        try:
+            with open(self.path, encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            return []
+        devices = data.get("devices") if isinstance(data, dict) else None
+        if not isinstance(devices, list):
+            return []
+        return [
+            d
+            for d in devices
+            if isinstance(d, dict)
+            and isinstance(d.get("id"), str)
+            and isinstance(d.get("hash"), str)
+        ]
+
+    def _save(self):
+        tmp = self.path + ".tmp"
+        try:
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump({"devices": self.devices}, f)
+            os.replace(tmp, self.path)
+        except OSError:
+            # Kept in memory until the app restarts.
+            pass
+
+    # The code on the page
+
+    def current_code(self, fresh=False):
+        """The code the page shows; a new one when it expired or was used."""
+        with self.lock:
+            now = self.clock()
+            if fresh or self.code is None or self.code["expires"] <= now:
+                value = "".join(
+                    secrets.choice(CODE_ALPHABET) for _ in range(CODE_LENGTH)
+                )
+                self.code = {"value": value, "expires": now + CODE_SECONDS, "tries": 0}
+            return {"code": self.code["value"], "expires": int(self.code["expires"])}
+
+    # The phone
+
+    def pair(self, code, name):
+        """Returns (http status, body)."""
+        with self.lock:
+            now = self.clock()
+            current = self.code
+            if current is None or current["expires"] <= now:
+                return 403, {"error": "expired"}
+            if len(self.devices) >= MAX_DEVICES:
+                return 409, {"error": "full"}
+            if not hmac.compare_digest(clean_code(code), current["value"]):
+                current["tries"] += 1
+                if current["tries"] >= CODE_TRIES:
+                    self.code = None
+                    return 429, {"error": "tries"}
+                return 403, {"error": "code"}
+            self.code = None  # one use
+            key = secrets.token_urlsafe(32)
+            device = {
+                "id": secrets.token_hex(8),
+                "name": clean_name(name),
+                "hash": key_hash(key),
+                "added": int(now),
+                "seen": int(now),
+            }
+            self.devices.append(device)
+            self._save()
+            return 200, {"id": device["id"], "key": key}
+
+    def check(self, header):
+        """The device for an 'Authorization: Bearer <key>' header, or None."""
+        if not header or not header.startswith("Bearer "):
+            return None
+        wanted = key_hash(header[len("Bearer "):].strip())
+        with self.lock:
+            for d in self.devices:
+                if hmac.compare_digest(d["hash"], wanted):
+                    now = int(self.clock())
+                    if now - int(d.get("seen") or 0) >= SEEN_EVERY:
+                        d["seen"] = now
+                        self._save()
+                    return d
+        return None
+
+    # The page
+
+    def listing(self):
+        with self.lock:
+            return [
+                {
+                    "id": d["id"],
+                    "name": d.get("name") or "iPhone",
+                    "added": d.get("added"),
+                    "seen": d.get("seen"),
+                }
+                for d in self.devices
+            ]
+
+    def remove(self, device_id):
+        with self.lock:
+            before = len(self.devices)
+            self.devices = [d for d in self.devices if d["id"] != device_id]
+            if len(self.devices) == before:
+                return False
+            self._save()
+            return True
+
+
+pairing = None  # set in main()
+
+
+# --- HTTP -----------------------------------------------------------------
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "RockIt"
     sys_version = ""
@@ -160,33 +339,91 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("X-Frame-Options", "DENY")
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)
 
-    def send_json(self, value):
-        self.send(200, json.dumps(value).encode(), "application/json")
+    def send_json(self, value, code=200):
+        self.send(code, json.dumps(value).encode(), "application/json")
+
+    def read_json(self):
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return None
+        if length <= 0 or length > MAX_BODY:
+            return None
+        try:
+            value = json.loads(self.rfile.read(length))
+        except ValueError:
+            return None
+        return value if isinstance(value, dict) else None
+
+    def path_only(self):
+        return self.path.split("?", 1)[0]
 
     def do_GET(self):  # noqa: N802 - http.server naming
-        path = self.path.split("?", 1)[0]
+        path = self.path_only()
         if path in ("/", "/index.html"):
-            with open(os.path.join(HERE, "index.html"), "rb") as f:
-                self.send(200, f.read(), "text/html; charset=utf-8")
+            self.file("index.html", "text/html; charset=utf-8")
+        elif path == "/icon.svg":
+            self.file("icon.svg", "image/svg+xml")
+        elif path == "/qr.js":
+            self.file("qr.js", "text/javascript; charset=utf-8")
         elif path == "/api/status":
             self.send_json(status())
         elif path == "/api/widget":
             self.send_json(widget())
-        elif path == "/icon.svg":
-            with open(os.path.join(HERE, "icon.svg"), "rb") as f:
-                self.send(200, f.read(), "image/svg+xml")
+        elif path == "/api/pairing":
+            self.send_json({**pairing.current_code(), "devices": pairing.listing()})
+        elif path == "/phone/status":
+            if pairing.check(self.headers.get("Authorization")) is None:
+                self.send_json({"error": "unpaired"}, 401)
+            else:
+                self.send_json(status())
         else:
             self.send(404, b"Not found", "text/plain")
 
     do_HEAD = do_GET
 
+    def do_POST(self):  # noqa: N802
+        path = self.path_only()
+        body = self.read_json()
+        if body is None:
+            self.send_json({"error": "body"}, 400)
+            return
+        if path == "/phone/pair":
+            code, value = pairing.pair(body.get("code", ""), body.get("name", ""))
+            self.send_json(value, code)
+            return
+        # The page's own actions. The custom header cannot be sent by another
+        # site without a CORS preflight, which this server never allows.
+        if self.headers.get("X-Rock-It") != "1":
+            self.send_json({"error": "forbidden"}, 403)
+        elif path == "/api/pairing/new":
+            self.send_json(
+                {**pairing.current_code(fresh=True), "devices": pairing.listing()}
+            )
+        elif path == "/api/devices/remove":
+            removed = pairing.remove(str(body.get("id", "")))
+            self.send_json({"removed": removed, "devices": pairing.listing()})
+        else:
+            self.send_json({"error": "not found"}, 404)
+
+    def file(self, name, ctype):
+        with open(os.path.join(HERE, name), "rb") as f:
+            self.send(200, f.read(), ctype)
+
     def log_message(self, fmt, *args):
         pass  # keep the logs quiet; nothing here is worth keeping
 
 
-if __name__ == "__main__":
+def main():
+    global pairing
+    pairing = Pairing(PAIR_DIR)
     ThreadingHTTPServer(("0.0.0.0", LISTEN_PORT), Handler).serve_forever()
+
+
+if __name__ == "__main__":
+    main()

@@ -13,6 +13,8 @@ export interface RockStatus {
   };
   walletServer: { open: boolean; port: number };
   disk: { free: number; total: number } | null;
+  /** Whether other Zcash nodes can connect in (null on older Rocks). */
+  privacy: { inbound: boolean } | null;
   version: string;
 }
 
@@ -29,6 +31,7 @@ export function parseStatus(raw: unknown): RockStatus | null {
   const node = (r.node ?? {}) as Record<string, unknown>;
   const ws = (r.walletServer ?? {}) as Record<string, unknown>;
   const disk = r.disk as Record<string, unknown> | null | undefined;
+  const pv = r.privacy as Record<string, unknown> | null | undefined;
   const free = num(disk?.free);
   const total = num(disk?.total);
   return {
@@ -46,6 +49,10 @@ export function parseStatus(raw: unknown): RockStatus | null {
       port: num(ws.port) ?? 8137,
     },
     disk: free != null && total != null ? { free, total } : null,
+    privacy:
+      pv != null && typeof pv.inbound === 'boolean'
+        ? { inbound: pv.inbound }
+        : null,
     version: typeof r.version === 'string' ? r.version : '',
   };
 }
@@ -54,23 +61,27 @@ export function parseStatus(raw: unknown): RockStatus | null {
 export class RockError extends Error {
   constructor(
     message: string,
-    readonly kind: 'unreachable' | 'login' | 'notRockIt',
+    readonly kind: 'unreachable' | 'login' | 'notRockIt' | 'unpaired' | 'code',
   ) {
     super(message);
   }
 }
 
-/** Asks one address for the status. Throws a RockError. */
+/**
+ * Asks one address for the status, with this phone's key from pairing.
+ * Throws a RockError.
+ */
 export async function fetchStatus(
   address: Address,
+  key: string,
   timeoutMs = 5000,
 ): Promise<RockStatus> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let response: Response;
   try {
-    response = await fetch(`http://${addressLabel(address)}/api/status`, {
-      headers: { Accept: 'application/json' },
+    response = await fetch(`http://${addressLabel(address)}/phone/status`, {
+      headers: { Accept: 'application/json', Authorization: `Bearer ${key}` },
       signal: controller.signal,
     });
   } catch {
@@ -89,9 +100,18 @@ export async function fetchStatus(
   }
   const status = response.ok ? parseStatus(body) : null;
   if (status != null) return status;
+  if (
+    response.status === 401 &&
+    (body as { error?: unknown } | null)?.error === 'unpaired'
+  ) {
+    throw new RockError(
+      'This iPhone is no longer paired with your Rock. Pair it again with the code on your Umbrel.',
+      'unpaired',
+    );
+  }
   if (response.status === 401 || response.redirected || body == null) {
     throw new RockError(
-      'Your Umbrel asked for a login. Update Zecky Rock it on the Umbrel to version 0.1.1 or newer.',
+      'Your Umbrel asked for a login. Update Zecky Rock it on the Umbrel to version 0.2.0 or newer.',
       'login',
     );
   }

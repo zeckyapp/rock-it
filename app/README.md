@@ -4,10 +4,25 @@ The iPhone app for Rock it, the Zcash node at home. It shows how the node is
 doing (sync, peers, drive, whether wallets can connect) and the address to
 enter in Zecky Lock it and Zecky Pocket.
 
-It only reads `/api/status` from the Rock it app on the Umbrel (port 8138):
-first at the home address, then at the Tailscale address. No keys, no funds,
-no other servers. Needs Zecky Rock it 0.1.1 or newer on the Umbrel, which
-opens that read-only status without an Umbrel login.
+It pairs once with the Rock it app on the Umbrel (port 8138): point the
+iPhone Camera at the QR code on the Rock it page (a `rockit://pair` link that
+opens this app), or type the eight-character code. Pairing gives this iPhone
+its own key, kept in the Keychain (this device only, never in backups). After
+that it reads `/phone/status` with that key: first at the home address, then
+at the Tailscale address. No wallet keys, no funds, no other servers. The
+Umbrel page can remove an iPhone at any time. Needs Zecky Rock it 0.2.0 or
+newer on the Umbrel.
+
+The app hides its screen in the app switcher.
+
+## Test pairing in the Simulator
+
+The Simulator has no camera. Either type the code from the Umbrel page, or
+open the QR's link directly (with the code shown on the page):
+
+```
+xcrun simctl openurl booted "rockit://pair?h=umbrel.local&p=8138&c=ABCD2345"
+```
 
 ## Build on the Mac
 
@@ -35,6 +50,8 @@ npx tsc --noEmit && npx eslint App.tsx src __tests__ && npx jest
 | `src/lib/address.ts` | Reading addresses; home and Tailscale ranges |
 | `src/lib/status.ts` | Fetching and reading `/api/status` |
 | `src/lib/check.ts` | Home first, then Tailscale |
-| `src/lib/rock.ts` | The saved Rock (iOS Settings store) |
+| `src/lib/rock.ts` | The saved Rock and its device id (iOS Settings store) |
+| `src/lib/pair.ts` | The QR link, the code, and trading it for a key |
+| `src/lib/key.ts` | This iPhone's key (iOS Keychain) |
 | `src/screens/` | Setup and status screens |
 | `assets/icon/` | App icon (`rock-it-icon.svg`, rendered to 1024 px) |

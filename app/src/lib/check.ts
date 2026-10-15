@@ -9,12 +9,14 @@ export interface Reached {
 }
 
 /**
- * Asks the Rock for its status: the home address first (fast, and it works
- * on the home Wi-Fi), then the Tailscale address. The error from the last
- * try is the one shown, unless an earlier one says more.
+ * Asks the Rock for its status with this phone's key: the home address first
+ * (fast, and it works on the home Wi-Fi), then the Tailscale address. The
+ * error from the last try is the one shown, unless an earlier one says more.
+ * When the Rock says this phone is not paired, that is the answer.
  */
 export async function checkRock(
   rock: Rock,
+  key: string,
   fetcher: typeof fetchStatus = fetchStatus,
 ): Promise<Reached> {
   const tries: { via: Reached['via']; address: Address }[] = [];
@@ -23,10 +25,11 @@ export async function checkRock(
   let best: RockError | null = null;
   for (const t of tries) {
     try {
-      return { ...t, status: await fetcher(t.address) };
+      return { ...t, status: await fetcher(t.address, key) };
     } catch (e) {
       const err =
         e instanceof RockError ? e : new RockError(String(e), 'unreachable');
+      if (err.kind === 'unpaired') throw err;
       if (best == null || best.kind === 'unreachable') best = err;
     }
   }

@@ -5,14 +5,15 @@ services:
     environment:
       APP_HOST: zecky-rock-it_status_1
       APP_PORT: 8080
-      # The Rock it iPhone app reads the sync status without an Umbrel login.
-      # Read-only: /api/status and /api/widget. The page itself stays behind
-      # the login.
-      PROXY_AUTH_WHITELIST: "/api/*"
+      # Only the Rock it iPhone app's paths skip the Umbrel login: /phone/pair
+      # (needs the code from the page) and /phone/status (needs the key from
+      # pairing). The page and /api/* stay behind the login.
+      PROXY_AUTH_WHITELIST: "/phone/*"
 
   # Status and connection page (the app's web UI and home-screen widget).
   status:
-    image: ghcr.io/zeckyapp/rockit-status:0.1.0@sha256:ce80429786a73933c77ff431aa90e08529c7054981abf73d46196ee894054ace
+    # Pin to the digest once the 0.2.0 image is built (Status image workflow).
+    image: ghcr.io/zeckyapp/rockit-status:0.2.0
     user: "1000:1000"
     restart: on-failure
     environment:
@@ -21,7 +22,12 @@ services:
       WALLET_PORT: "${APP_ZECKY_ROCK_IT_WALLET_PORT}"
       APP_VERSION: "${APP_VERSION}"
       DATA_DIR: /chain
+      PAIR_DIR: /data
+      # The node's peer port (8233) is not published: it only connects out.
+      NODE_INBOUND: "false"
     volumes:
+      # Paired iPhones (key hashes only).
+      - ${APP_DATA_DIR}/data/rockit:/data
       # Read-only, only to show the free space on the drive.
       - ${APP_DATA_DIR}/data/zakura:/chain:ro
 
