@@ -203,11 +203,11 @@ export function StatusScreen({ rock, onEdit }: Props) {
           <Row
             label="Wallets"
             value={status.walletServer.open ? 'Can connect' : 'Not yet'}
+            last={!status.version}
           />
           {status.version ? (
-            <Row label="Rock it on Umbrel" value={status.version} />
+            <Row label="Rock it on Umbrel" value={status.version} last />
           ) : null}
-          <Row label="This app" value={APP_VERSION} last />
         </View>
       ) : null}
 
@@ -235,9 +235,11 @@ export function StatusScreen({ rock, onEdit }: Props) {
         })}
       </View>
 
-      {checkedAt ? (
-        <Text style={styles.footer}>Checked {ago(Date.now() - checkedAt)}</Text>
-      ) : null}
+      {/* Always shown, also when the Rock can't be reached. */}
+      <Text style={styles.footer}>
+        Rock it app {APP_VERSION}
+        {checkedAt ? ` · Checked ${ago(Date.now() - checkedAt)}` : ''}
+      </Text>
     </ScrollView>
   );
 }
