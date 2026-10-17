@@ -79,6 +79,66 @@ class PairingTest(unittest.TestCase):
         self.assertEqual(self.p.listing()[0]["name"], "a" * server.MAX_NAME)
 
 
+POOLS = [
+    {"id": "transparent", "chainValueZat": 1195785402182148},
+    {"id": "sprout", "chainValueZat": 2230944195128},
+    {"id": "sapling", "chainValueZat": 47446097337494},
+    {"id": "orchard", "chainValueZat": 35032947967991},
+    {"id": "lockbox", "chainValueZat": 7024462500000},
+    {"id": "ironwood", "chainValueZat": 411605474871719},
+]
+
+
+class WidgetTest(unittest.TestCase):
+    def setUp(self):
+        self.saved = server.status
+
+    def tearDown(self):
+        server.status = self.saved
+
+    def fake(self, phase, **node):
+        n = {"reachable": phase != "starting", "height": 3521037,
+             "estimatedHeight": 3521037, "progress": 1.0, "peers": 52,
+             "pools": server.pools(POOLS)}
+        n.update(node)
+        server.status = lambda: {
+            "phase": phase, "node": n,
+            "walletServer": {"open": phase == "ready", "port": 8137},
+            "privacy": {"mode": "private", "inbound": False},
+        }
+
+    def test_shielded_counts_only_shielded_pools(self):
+        p = server.pools(POOLS)
+        # sprout + sapling + orchard + ironwood; not transparent or lockbox.
+        self.assertEqual(p["shieldedZat"], 496315464372332)
+        self.assertEqual(p["totalZat"], sum(x["chainValueZat"] for x in POOLS))
+        self.assertIsNone(server.pools(None))
+        self.assertIsNone(server.pools([{"id": "sapling"}]))
+
+    def test_sync_widget_texts(self):
+        self.fake("ready")
+        w = server.widget()
+        self.assertEqual((w["title"], w["text"]), ("Zcash node", "Synced"))
+        self.assertEqual(w["progressLabel"], "Block 3,521,037 · checked by you")
+        self.fake("syncing", height=1480000, estimatedHeight=3520000, progress=0.42045)
+        w = server.widget()
+        self.assertEqual(w["text"], "42.0%")
+        self.assertEqual(w["progressLabel"], "Syncing · block 1,480,000 of 3,520,000")
+
+    def test_stats_widget(self):
+        self.fake("ready")
+        w = server.widget_stats()
+        self.assertEqual(w["type"], "four-stats")
+        tiles = {i["title"]: (i["text"], i["subtext"]) for i in w["items"]}
+        self.assertEqual(tiles["Shielded"], ("4.96M", "ZEC · 29%"))
+        self.assertEqual(tiles["Network"], ("52", "peers"))
+        self.assertEqual(tiles["Wallets"], ("Open", "for Zecky"))
+        self.assertEqual(tiles["Mode"], ("Private", "node"))
+        self.fake("starting")
+        tiles = {i["title"]: i["text"] for i in server.widget_stats()["items"]}
+        self.assertEqual((tiles["Shielded"], tiles["Network"], tiles["Wallets"]), ("–", "–", "Closed"))
+
+
 class HttpTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
