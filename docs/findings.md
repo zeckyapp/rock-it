@@ -59,3 +59,17 @@ block. See the patches in `zaino/patches/`.
   network.
 - Tailscale on the Pi (Umbrel app) and on the phone gives a working connection
   from anywhere, with no router changes.
+
+## Umbrel: other apps
+
+- Every Umbrel app joins the shared `umbrel_main_network` (10.21.0.0/16).
+  Up to 0.3.4 Rock it sat there too, so any other app could read the pairing
+  code, remove iPhones and call the node's RPC, which has no password.
+  Checked from a throwaway container on that network.
+- On this umbrelOS the login proxy is Umbrel's own process on the host, not
+  an `app_proxy` container. It reaches the page from the host's address on
+  the network (10.21.0.1).
+- From 0.3.5 the node and Zaino are on Rock it's own network (10.137.42.0/24),
+  and the status page answers only the host's addresses (`PAGE_CLIENTS`).
+- Apps on the host network (Tailscale) count as the host and are not shut
+  out. They already have full access to the Umbrel.
