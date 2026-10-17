@@ -20,7 +20,7 @@ permissions:
 env:
   IMAGE: ghcr.io/zeckyapp/zaino-rockit
   # Raise with every change to the patches or the Zaino version.
-  VERSION: 0.10.2-rockit1
+  VERSION: 0.10.2-rockit2
 
 jobs:
   build:
