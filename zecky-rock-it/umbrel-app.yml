@@ -4,7 +4,7 @@ storage:
   dataRoot: data
 category: finance
 name: Zecky Rock it
-version: "0.3.5"
+version: "0.3.6"
 tagline: Your own Zcash node for Zecky Lock it and Zecky Pocket
 icon: https://raw.githubusercontent.com/zeckyapp/rock-it/main/status/icon.svg
 description: >-
@@ -28,6 +28,11 @@ description: >-
   server by Zingo Labs), with two small Rock it patches for speed on a
   Raspberry Pi.
 releaseNotes: >-
+  0.3.6: the home-screen widget shows the sync again, and the page is now
+  out of reach of other apps entirely. The base images are pinned to their
+  exact builds.
+
+
   0.3.5: other apps on your Umbrel can no longer reach Rock it. The node and
   Zaino run on Rock it's own network, and the status page only answers
   Umbrel itself, behind its login.

@@ -11,7 +11,7 @@ services:
   # Status and connection page (the app's web UI and home-screen widget).
   status:
     # The digest pins the exact build (the Status image workflow reports it).
-    image: ghcr.io/zeckyapp/rockit-status:0.3.4@sha256:3b19d333b4100db6335266bbffbf3a666b7b61dc8a263fda79980fa47b7b68c5
+    image: ghcr.io/zeckyapp/rockit-status:0.3.5@sha256:b8e2a90d3b538615c8df165bb8d7d521204fa062e6e818eb718440242efcc508
     # Starts as root only to give its data folder to user 1000 (Docker makes a
     # missing folder owned by root), then drops to 1000 before serving.
     user: "0:0"
@@ -26,9 +26,9 @@ services:
       TLS_PORT: "${APP_ZECKY_ROCK_IT_PHONE_PORT}"
       # The node's peer port (8233) is not published: it only connects out.
       NODE_INBOUND: "false"
-      # Only Umbrel itself may use the page on 8080: its address on the
-      # shared app network and on Rock it's own. Other apps get 403.
-      PAGE_CLIENTS: "10.21.0.1,10.137.42.1"
+      # Only Umbrel itself may use the page on 8080: the host's address on
+      # Rock it's own network. Anything else gets 403.
+      PAGE_CLIENTS: "10.137.42.1"
     ports:
       # The Rock it iPhone app, HTTPS with the Rock's own certificate. Only
       # pairing and the status (with a paired key) answer here.
@@ -39,9 +39,10 @@ services:
       # Read-only, only to show the free space on the drive.
       - ${APP_DATA_DIR}/data/zakura:/chain:ro
     networks:
-      # The shared app network, so Umbrel's login proxy and the widget reach
-      # the page; and Rock it's own, to reach the node and Zaino.
-      default: {}
+      # Only Rock it's own network. Umbrel (on the host) still reaches the
+      # page and the widget here; other apps cannot reach it at all. It must
+      # stay on exactly one network: Umbrel finds the widget's address with
+      # docker inspect, which glues the addresses of all networks together.
       rockit: {}
 
   # The Zcash node.
@@ -65,7 +66,7 @@ services:
 
   # Light-wallet server: Zecky Lock it and Pocket connect here.
   zaino:
-    image: ghcr.io/zeckyapp/zaino-rockit:0.10.2-rockit1@sha256:3abdb522b5296871fb53ce5897f72886ebf42b2ffc93890b1ad02e4d075172be
+    image: ghcr.io/zeckyapp/zaino-rockit:0.10.2-rockit2@sha256:910eef16363add186db34c11ccd6d27f880bf15a041835431a28e0dae8d55747
     restart: on-failure
     depends_on:
       - zakura
