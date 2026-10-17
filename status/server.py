@@ -136,7 +136,32 @@ def node():
         "estimatedHeight": estimated,
         "progress": min(progress, 1.0),
         "peers": peers,
+        "pools": pools(info.get("valuePools")),
     }
+
+
+# The shielded pools. Transparent is public, and the lockbox holds the
+# development fund's reserve, not people's money. A pool not listed here
+# (a future upgrade) is not counted as shielded until it is added.
+SHIELDED_POOLS = ("sprout", "sapling", "orchard", "ironwood")
+
+
+def pools(value_pools):
+    """Shielded and total ZEC (in zatoshi) from getblockchaininfo's valuePools."""
+    if not isinstance(value_pools, list):
+        return None
+    shielded = total = 0
+    for p in value_pools:
+        try:
+            zat = int(p["chainValueZat"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        total += zat
+        if p.get("id") in SHIELDED_POOLS:
+            shielded += zat
+    if total <= 0:
+        return None
+    return {"shieldedZat": shielded, "totalZat": total}
 
 
 def privacy():
@@ -173,27 +198,70 @@ def status():
 
 
 def widget():
+    """The sync widget on the Umbrel home screen."""
     s = status()
     n = s["node"]
     if s["phase"] == "starting":
         text, label, progress = "Starting", "The node is starting", 0
     elif s["phase"] == "syncing":
-        pct = n["progress"] * 100
-        text = f"Syncing {pct:.1f}%"
-        label = f"Block {n['height']:,} of about {n['estimatedHeight']:,}"
+        text = f"{n['progress'] * 100:.1f}%"
+        label = f"Syncing · block {n['height']:,} of {n['estimatedHeight']:,}"
         progress = n["progress"]
     elif s["phase"] == "opening":
         text, label, progress = "Almost ready", "Opening the wallet port", 1
     else:
-        text, label, progress = "Ready", f"Block {n['height']:,}", 1
+        text, label, progress = "Synced", f"Block {n['height']:,} · checked by you", 1
     return {
         "type": "text-with-progress",
         "refresh": "30s",
         "link": "",
-        "title": "Rock it",
+        "title": "Zcash node",
         "text": text,
         "progressLabel": label,
         "progress": round(progress, 4),
+    }
+
+
+def short_zec(zat):
+    """4963154.66 ZEC -> '4.96M', 474460.97 -> '474K', 812.5 -> '813'."""
+    zec = zat / 100_000_000
+    if zec >= 1_000_000:
+        return f"{zec / 1_000_000:.2f}M"
+    if zec >= 1_000:
+        return f"{zec / 1_000:.0f}K"
+    return f"{zec:.0f}"
+
+
+def widget_stats():
+    """The four-tile widget: what the node does for privacy and the network."""
+    s = status()
+    n = s["node"]
+    p = n.get("pools") if n.get("reachable") else None
+    if p:
+        share = p["shieldedZat"] * 100 / p["totalZat"]
+        shielded = (short_zec(p["shieldedZat"]), f"ZEC · {share:.0f}%")
+    else:
+        shielded = ("–", "ZEC")
+    peers = n.get("peers") if n.get("reachable") else None
+    inbound = s["privacy"]["inbound"]
+    return {
+        "type": "four-stats",
+        "refresh": "30s",
+        "link": "",
+        "items": [
+            {"title": "Shielded", "text": shielded[0], "subtext": shielded[1]},
+            {"title": "Network", "text": "–" if peers is None else f"{peers:,}", "subtext": "peers"},
+            {
+                "title": "Wallets",
+                "text": "Open" if s["walletServer"]["open"] else "Closed",
+                "subtext": "for Zecky",
+            },
+            {
+                "title": "Mode",
+                "text": "Supporter" if inbound else "Private",
+                "subtext": "node",
+            },
+        ],
     }
 
 
@@ -461,6 +529,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(status())
         elif path == "/api/widget":
             self.send_json(widget())
+        elif path == "/api/widget/stats":
+            self.send_json(widget_stats())
         elif path == "/api/pairing":
             self.send_json(
                 {
