@@ -58,6 +58,21 @@ ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
 a{color:var(--gold-hi)}
 .btn{display:inline-flex;align-items:center;height:40px;padding:0 18px;border-radius:999px;background:var(--gold);color:var(--ink);font-size:14px;font-weight:600;text-decoration:none}
 .btn:hover{background:var(--gold-hi)}
+.lead{margin:0 0 6px;font-size:20px;font-weight:400}
+.needs{list-style:none;padding:0;margin:12px 0 0;display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--muted)}
+.needs li::before{content:"\25CB  ";color:var(--gold)}
+.step1{margin:4px 0 0;padding:10px 14px;border-radius:10px;border:1px solid var(--gold);font-size:14px}
+.uses{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:14px 0 0;font-size:14px}
+.uses dt{color:var(--paper)}
+.uses dd{margin:0;color:var(--muted);overflow-wrap:anywhere}
+.uses code,.inline{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--gold-hi)}
+.sub{margin:22px 0 10px;font-size:13px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.qrs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;align-items:start}
+.qrs .note{margin-top:8px}
+details{margin-top:20px;border-top:1px solid var(--line);padding-top:14px}
+summary{cursor:pointer;color:var(--gold);font-size:14px}
+details[open] summary{margin-bottom:12px}
+@media (max-width:520px){.uses{grid-template-columns:1fr;gap:2px 0}.uses dd{margin-bottom:8px}}
 footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:var(--faint);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 </style>
 </head>
@@ -87,43 +102,35 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
     </dl>
   </section>
 
-  <section class="card">
-    <h2>Pair the Rock it app</h2>
-    <span class="for">For the Rock it iPhone app · port <span class="tlsport">8139</span>, encrypted</span>
-    <div class="pair">
-      <div class="qr" id="qr" aria-label="Pairing code as a QR code" role="img"></div>
-      <div>
-        <p style="margin:0">Point your iPhone's Camera at this QR code and tap the link. Or, in the Rock it app, type this code with the address <strong class="hostonly">your-umbrel-ip</strong> (no port needed):</p>
-        <p class="code" id="code" style="margin:8px 0">––––-––––</p>
-        <p class="note" style="margin:0 0 12px" id="expires">&nbsp;</p>
-        <button type="button" class="quiet" id="newcode">New code</button>
+  <section class="card" id="ow">
+    <h2>Connect</h2>
+    <div id="ow-body"><p style="margin:0" class="note">Loading…</p></div>
+    <div id="pair-on"></div>
+    <div id="ow-foot"></div>
+    <details id="local">
+      <summary>Without Tailscale (home Wi-Fi only)</summary>
+      <p style="margin:0">Zecky Lock it and Pocket can also use this address, only on your home Wi-Fi:</p>
+      <div class="addr"><code id="address">–</code><button type="button" id="copy">Copy</button></div>
+      <p class="note" style="margin-top:0">In the wallet: Settings, Network, Add a server, then paste it and tap <em>Check, save and use</em>. Not encrypted on your home network, and not reachable from the internet.</p>
+      <p class="note" id="hostnote" hidden><strong>Use the number, not the name.</strong> Zecky needs your Umbrel's IP address, such as 192.168.1.20. Open this page through that address, or find it in your router or in Umbrel's settings.</p>
+      <p class="note" id="localpair" hidden>The Rock it app can pair at home too: type the code above in the app with the address <strong class="homehost">your-umbrel-ip</strong>.</p>
+      <div id="pair-off"></div>
+    </details>
+    <div id="pairbox">
+      <p class="sub">Rock it app</p>
+      <div class="pair">
+        <div class="qr" id="qr" aria-label="Pairing code as a QR code" role="img"></div>
+        <div>
+          <p style="margin:0">Point your iPhone's Camera at this QR code and tap the link. Or type this code in the Rock it app, with the address <strong class="hostonly">your-umbrel-ip</strong>:</p>
+          <p class="code" id="code" style="margin:8px 0">––––-––––</p>
+          <p class="note" style="margin:0 0 12px" id="expires">&nbsp;</p>
+          <button type="button" class="quiet" id="newcode">New code</button>
+        </div>
       </div>
+      <p class="note">The code works once, for ten minutes. Each iPhone gets its own key; remove one here and it can no longer read your Rock. The QR code carries your Rock's fingerprint, so the app trusts nothing else.</p>
+      <p class="note" id="notls" hidden><strong>The encrypted connection is not ready.</strong> Restart Zecky Rock it on your Umbrel; the iPhone app cannot pair until it is.</p>
+      <ul class="devices" id="devices"></ul>
     </div>
-    <p class="note">The code works once, for ten minutes. Each iPhone gets its own key; remove one here and it can no longer read your Rock. The app talks to your Rock over its own encrypted connection: the QR code carries your Rock's fingerprint, so the app trusts nothing else.</p>
-    <p class="note" id="notls" hidden><strong>The encrypted connection is not ready.</strong> Restart Zecky Rock it on your Umbrel; the iPhone app cannot pair until it is.</p>
-    <ul class="devices" id="devices"></ul>
-  </section>
-
-  <section class="card">
-    <h2>Connect Lock it and Pocket</h2>
-    <span class="for">For your Zecky wallets · port <span class="port">8137</span></span>
-    <p style="margin:0">Wallet server address. Not for the Rock it app.</p>
-    <div class="addr"><code id="address">–</code><button type="button" id="copy">Copy</button></div>
-    <ol>
-      <li>Open Zecky Lock it or Zecky Pocket.</li>
-      <li>Go to Settings, then Network, then Add a server.</li>
-      <li>Name it, for example <em>Rock it</em>, and enter the address above.</li>
-      <li>Tap <em>Check, save and use</em>.</li>
-    </ol>
-    <p class="note" id="hostnote" hidden><strong>Use the number, not the name.</strong> Zecky needs your Umbrel's IP address, such as 192.168.1.20. Open this page through that address, or find it in your router or in Umbrel's settings.</p>
-    <p class="note"><strong>Away from home?</strong> Install Tailscale on your Umbrel and on your phone, then add a second server in each wallet with your Umbrel's Tailscale address (it starts with 100.) and port <span class="port">8137</span>.</p>
-    <p class="note">The wallet port is only open inside your home network. Your router does not forward it, so it is not reachable from the internet.</p>
-  </section>
-
-  <section class="card" id="ow" hidden>
-    <h2>Other wallets</h2>
-    <span class="for">For Zodl, Vizor and other Zcash wallets · encrypted, through Tailscale</span>
-    <div id="ow-body"></div>
   </section>
 
   <footer>
@@ -140,19 +147,27 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
   var host=location.hostname;
   var isIp=/^\d{1,3}(\.\d{1,3}){3}$/.test(host);
 
+  // The Rock's Tailscale name once Other wallets is on; then everything,
+  // the Rock it app included, connects through it.
+  var tsName='';
+  function each(sel,fn){Array.prototype.forEach.call(document.querySelectorAll(sel),fn);}
+  function pairHost(){return tsName||host;}
   function showAddress(){
-    $('address').textContent=(isIp?host:'your-umbrel-ip')+':'+port;
-    Array.prototype.forEach.call(document.querySelectorAll('.hostonly'),function(el){el.textContent=isIp?host:'your-umbrel-ip';});
+    var home=isIp?host:'your-umbrel-ip';
+    $('address').textContent=home+':'+port;
+    each('.hostonly',function(el){el.textContent=tsName||home;});
+    each('.homehost',function(el){el.textContent=home;});
     $('hostnote').hidden=isIp;
-    Array.prototype.forEach.call(document.querySelectorAll('.port'),function(el){el.textContent=port;});
+    $('localpair').hidden=!tsName;
+  }
+  function copyFrom(code,btn){
+    var text=code.textContent;
+    var done=function(){btn.textContent='Copied';setTimeout(function(){btn.textContent='Copy';},1500);};
+    if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(text).then(done,function(){});}
+    else{var r=document.createRange();r.selectNodeContents(code);var s=getSelection();s.removeAllRanges();s.addRange(r);try{document.execCommand('copy');done();}catch(e){}}
   }
 
-  $('copy').addEventListener('click',function(){
-    var text=$('address').textContent;
-    var done=function(){$('copy').textContent='Copied';setTimeout(function(){$('copy').textContent='Copy';},1500);};
-    if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(text).then(done,function(){});}
-    else{var r=document.createRange();r.selectNodeContents($('address'));var s=getSelection();s.removeAllRanges();s.addRange(r);try{document.execCommand('copy');done();}catch(e){}}
-  });
+  $('copy').addEventListener('click',function(){copyFrom($('address'),$('copy'));});
 
   function dot(cls,text){return '<span class="dot '+cls+'"></span>'+text;}
 
@@ -181,7 +196,7 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
   var pairState=null;
   function esc(t){return String(t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function pairLink(code,tls){
-    var link='rockit://pair?h='+encodeURIComponent(host)+'&c='+code;
+    var link='rockit://pair?h='+encodeURIComponent(pairHost())+'&c='+code;
     if(tls)link+='&t='+tls.port+'&k='+tls.pin;
     return link;
   }
@@ -199,7 +214,6 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
       return '<li><span>'+esc(d.name)+' <small>· last seen '+esc(seen)+'</small></span><button type="button" class="quiet" data-id="'+esc(d.id)+'">Remove</button></li>';
     }).join(''):'<li><span><small>No iPhones paired yet.</small></span></li>';
     $('notls').hidden=!!st.tls;
-    if(st.tls)Array.prototype.forEach.call(document.querySelectorAll('.tlsport'),function(el){el.textContent=st.tls.port;});
     showExpiry();
   }
   function showExpiry(){
@@ -229,51 +243,74 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
       .then(function(){setTimeout(tick,5000);});
   }
   // Other wallets (Zodl, Vizor, ...) through the Rock's own Tailscale node.
-  var owTimer=null;
-  function owAddress(a){return '<div class="addr"><code id="ow-address">'+esc(a)+'</code><button type="button" data-ow="copy">Copy</button></div>';}
+  var owTimer=null,owWasOn=null;
+  function qrSvg(text){
+    if(typeof qrcode!=='function')return '';
+    var q=qrcode(0,'M');q.addData(text);q.make();
+    return q.createSvgTag({cellSize:4,margin:0,scalable:true});
+  }
+  // The Rock it app's block sits in the main card when Tailscale is on, and
+  // under "Without Tailscale" when it is not.
+  function placePair(on){
+    var box=$('pairbox'),slot=$(on?'pair-on':'pair-off');
+    if(box.parentNode!==slot)slot.appendChild(box);
+  }
   function renderOw(w){
-    var b=$('ow-body'),h='';
-    $('ow').hidden=false;
-    var privacy='<p class="warn"><strong>Before you turn this on.</strong> Your Rock joins your own Tailscale network as <em>rockit</em> and gets an HTTPS address. Its name, <em>rockit.&lt;your-tailnet&gt;.ts.net</em>, then appears in public certificate logs. That does not show your home address, and only devices in your Tailscale network can connect.</p>';
+    var b=$('ow-body'),f='',h='';
+    var wasName=tsName;
+    tsName=w.state==='on'?String(w.name||''):'';
+    var privacy='<p class="warn"><strong>Before you turn this on.</strong> Your Rock joins your own Tailscale network as <em>rockit</em>. Its name, <em>rockit.&lt;your-tailnet&gt;.ts.net</em>, then appears in public certificate logs. That does not show your home address, and only devices in your Tailscale network can connect.</p>';
+    var off='<div class="actions"><button type="button" class="quiet" data-ow="off">Turn off</button></div>';
     if(w.state==='unavailable'){
-      h='<p style="margin:0">Not available right now. If this stays, restart Zecky Rock it on your Umbrel.</p>';
+      h='<p style="margin:0">Tailscale is not available right now. If this stays, restart Zecky Rock it on your Umbrel. Meanwhile, use your home Wi-Fi below.</p>';
     }else if(w.state==='off'){
-      h='<p style="margin:0"><span class="dot"></span>Off. Zecky Lock it and Pocket do not need this.</p>'+
-        '<p class="note">For wallets that only connect over HTTPS. You need a Tailscale account, the Tailscale app on your phone, and HTTPS Certificates switched on in your Tailscale admin console (DNS page).</p>'+privacy+
+      h='<p class="lead serif">One address for all your wallets and the Rock it app.</p>'+
+        '<p style="margin:0;color:var(--muted)">Zodl, Vizor, Zecky Lock it, Pocket and the Rock it iPhone app all connect the same way: encrypted, at home and away, through your own Tailscale network.</p>'+
+        '<ul class="needs"><li>A free Tailscale account, and the Tailscale app on your phone</li><li>HTTPS Certificates on in your Tailscale admin console (DNS page)</li></ul>'+privacy+
         '<div class="actions"><button type="button" data-ow="on">Turn on</button></div>';
     }else if(w.state==='login'){
       h='<p style="margin:0"><span class="dot wait"></span>Log in to Tailscale to finish.</p>'+
         '<div class="actions"><a class="btn" href="'+esc(w.link)+'" target="_blank" rel="noopener noreferrer">Open the Tailscale login</a><button type="button" class="quiet" data-ow="off">Cancel</button></div>'+
         '<p class="note">Log in with the account your phone uses. This page updates by itself.</p>';
     }else if(w.state==='approve'){
-      h='<p style="margin:0"><span class="dot wait"></span>Approve the device <em>rockit</em> in your Tailscale admin console (Machines).</p>'+
-        '<div class="actions"><button type="button" class="quiet" data-ow="off">Turn off</button></div>';
+      h='<p style="margin:0"><span class="dot wait"></span>Approve the device <em>rockit</em> in your Tailscale admin console (Machines).</p>'+off;
     }else if(w.state==='nohttps'){
       h='<p style="margin:0"><span class="dot wait"></span>Almost there. Switch on <strong>HTTPS Certificates</strong> in your Tailscale admin console, on the DNS page.</p>'+
-        '<p class="note">This page updates by itself once it is on.</p>'+
-        '<div class="actions"><button type="button" class="quiet" data-ow="off">Turn off</button></div>';
+        '<p class="note">This page updates by itself once it is on.</p>'+off;
     }else if(w.state==='on'){
-      h='<p style="margin:0"><span class="dot on"></span>On. Server address for your wallet:</p>'+owAddress(w.address)+
-        '<ol><li>Connect your phone to Tailscale.</li><li><strong>Zodl:</strong> More, Advanced Settings, Choose a server, custom.</li><li><strong>Vizor:</strong> add a custom lightwalletd server.</li><li>Enter the address above.</li></ol>'+
-        '<p class="note">Turning it off logs your Rock out of Tailscale. If you turn it on again, remove the old <em>rockit</em> in your Tailscale admin console first, or the new one is named <em>rockit-1</em>.</p>'+
-        '<div class="actions"><button type="button" class="quiet" data-ow="off">Turn off</button></div>';
+      var name=esc(w.name),wallet=esc(w.address);
+      h='<p style="margin:0"><span class="dot on"></span>Your Rock\'s address</p>'+
+        '<div class="addr"><code id="ow-address">'+name+'</code><button type="button" data-ow="copy">Copy</button></div>'+
+        '<p class="step1"><strong>Step 1, always:</strong> keep Tailscale on on your phone, also at home.</p>'+
+        '<dl class="uses">'+
+          '<dt>Lock it, Pocket, Vizor</dt><dd>Add a server: <code>'+wallet+'</code></dd>'+
+          '<dt>Zodl</dt><dd>More, Advanced Settings, Choose a server, custom: <code>'+name+':'+esc(String(w.address).split(':').pop())+'</code></dd>'+
+          '<dt>Rock it app</dt><dd>Scan the Rock it app QR code below</dd>'+
+        '</dl>'+
+        '<p class="sub">Wallet server</p>'+
+        '<div class="qrs"><div><div class="qr" role="img" aria-label="Wallet server address as a QR code">'+qrSvg(w.address)+'</div>'+
+        '<p class="note">For wallets that can scan a server address. Nothing secret in it.</p></div></div>';
+      f='<p class="note">Turning it off logs your Rock out of Tailscale and every wallet using this address stops. If you turn it on again, remove the old <em>rockit</em> in your Tailscale admin console first, or the new one is named <em>rockit-1</em>.</p>'+off;
     }
     b.innerHTML=h;
+    $('ow-foot').innerHTML=f;
+    placePair(w.state==='on');
+    // Without Tailscale, the home Wi-Fi way is the way in: open it then, and
+    // fold it away once Tailscale is on. Only when that changes, so a fold
+    // the owner opened or closed stays as it is.
+    var isOn=w.state==='on';
+    if(isOn!==owWasOn){$('local').open=!isOn;owWasOn=isOn;}
+    showAddress();
+    if(tsName!==wasName&&pairState)renderPair(pairState);
     clearTimeout(owTimer);
-    owTimer=setTimeout(loadOw,(w.state==='on'||w.state==='off')?30000:4000);
+    owTimer=setTimeout(loadOw,(w.state==='on'||w.state==='off'||w.state==='unavailable')?30000:4000);
   }
   function loadOw(){fetch('api/wallets',{cache:'no-store'}).then(function(r){return r.json();}).then(renderOw).catch(function(){});}
-  $('ow-body').addEventListener('click',function(e){
+  $('ow').addEventListener('click',function(e){
     var t=e.target&&e.target.getAttribute('data-ow');if(!t)return;
-    if(t==='copy'){
-      var text=$('ow-address').textContent,btn=e.target;
-      var done=function(){btn.textContent='Copied';setTimeout(function(){btn.textContent='Copy';},1500);};
-      if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(text).then(done,function(){});}
-      else{var r=document.createRange();r.selectNodeContents($('ow-address'));var s=getSelection();s.removeAllRanges();s.addRange(r);try{document.execCommand('copy');done();}catch(x){}}
-      return;
-    }
-    if(t==='on'&&!confirm('Turn on other wallets? Your Rock\'s Tailscale name becomes public in certificate logs. Your home address does not.'))return;
-    if(t==='off'&&!confirm('Turn off other wallets? Wallets using this address stop working.'))return;
+    if(t==='copy'){copyFrom($('ow-address'),e.target);return;}
+    if(t==='on'&&!confirm('Turn on Tailscale for your Rock? Its Tailscale name becomes public in certificate logs. Your home address does not.'))return;
+    if(t==='off'&&!confirm('Turn off Tailscale for your Rock? Wallets and the Rock it app using this address stop working.'))return;
     e.target.disabled=true;
     post('api/wallets/'+t).then(renderOw).catch(function(){e.target.disabled=false;});
   });

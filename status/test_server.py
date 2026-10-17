@@ -280,11 +280,15 @@ class OtherWalletsTest(unittest.TestCase):
     def setUp(self):
         self.ts = FakeTailscale()
         self.addCleanup(self.ts.close)
-        saved = (server.TS_SOCKET, server.ZAINO_ADDR)
+        saved = (server.TS_SOCKET, server.ZAINO_ADDR, server.PHONE_FORWARD, server.TLS_PORT)
         self.addCleanup(lambda: setattr(server, "TS_SOCKET", saved[0]))
         self.addCleanup(lambda: setattr(server, "ZAINO_ADDR", saved[1]))
+        self.addCleanup(lambda: setattr(server, "PHONE_FORWARD", saved[2]))
+        self.addCleanup(lambda: setattr(server, "TLS_PORT", saved[3]))
         server.TS_SOCKET = self.ts.path
         server.ZAINO_ADDR = "10.137.42.11:8137"
+        server.PHONE_FORWARD = "10.137.42.5:8139"
+        server.TLS_PORT = 8139
 
     def test_unavailable_without_tailscale(self):
         server.TS_SOCKET = ""
@@ -308,13 +312,14 @@ class OtherWalletsTest(unittest.TestCase):
         self.ts.auth_url = "javascript:alert(1)"
         self.assertEqual(server.other_wallets(), {"state": "off"})
 
-    def test_on_serves_only_the_wallet_port_to_zaino(self):
+    def test_on_serves_only_the_wallet_port_and_the_phone_port(self):
         self.ts.backend = "Running"
         state = server.other_wallets()
         self.assertEqual(state["state"], "on")
         self.assertEqual(state["address"], "https://rockit.tail1234.ts.net:9067")
         self.assertEqual(self.ts.serve, {
-            "TCP": {"9067": {"HTTPS": True}},
+            "TCP": {"9067": {"HTTPS": True},
+                    "8139": {"TCPForward": "10.137.42.5:8139"}},
             "Web": {"rockit.tail1234.ts.net:9067": {
                 "Handlers": {"/": {"Proxy": "http://10.137.42.11:8137"}}}},
         })
@@ -322,6 +327,37 @@ class OtherWalletsTest(unittest.TestCase):
         posts = self.ts.calls.count(("POST", "/localapi/v0/serve-config"))
         server.other_wallets()
         self.assertEqual(self.ts.calls.count(("POST", "/localapi/v0/serve-config")), posts)
+
+    def test_rocks_already_on_get_the_phone_port(self):
+        # Turned on with 0.3.8: only the wallet port was served.
+        self.ts.backend = "Running"
+        self.ts.serve = {
+            "TCP": {"9067": {"HTTPS": True}},
+            "Web": {"rockit.tail1234.ts.net:9067": {
+                "Handlers": {"/": {"Proxy": "http://10.137.42.11:8137"}}}},
+        }
+        server.other_wallets()
+        self.assertEqual(self.ts.serve["TCP"]["8139"], {"TCPForward": "10.137.42.5:8139"})
+
+    def test_phone_port_forward_defaults_to_this_container(self):
+        server.PHONE_FORWARD = ""
+        host, port = server.phone_forward().rsplit(":", 1)
+        self.assertEqual(port, "8139")
+        self.assertTrue(host)
+
+    def test_phone_status_has_the_address_only_when_on(self):
+        saved = server.status
+        self.addCleanup(setattr, server, "status", saved)
+        server.status = lambda: {"phase": "ready", "node": {"reachable": True}}
+        self.assertNotIn("otherWallets", server.phone_status())
+        self.ts.backend = "Running"
+        self.assertEqual(server.phone_status()["otherWallets"], {
+            "name": "rockit.tail1234.ts.net",
+            "address": "https://rockit.tail1234.ts.net:9067",
+        })
+        self.assertEqual(server.phone_status()["phase"], "ready")
+        server.TS_SOCKET = ""
+        self.assertNotIn("otherWallets", server.phone_status())
 
     def test_on_without_https_certificates(self):
         self.ts.backend, self.ts.certs = "Running", None
