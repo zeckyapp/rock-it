@@ -11,7 +11,7 @@ services:
   # Status and connection page (the app's web UI and home-screen widget).
   status:
     # The digest pins the exact build (the Status image workflow reports it).
-    image: ghcr.io/zeckyapp/rockit-status:0.3.3@sha256:a188ebc89c8550069fd60d8be72382ef0456ca80b1cc56879f6ed1ff5cc7d81a
+    image: ghcr.io/zeckyapp/rockit-status:0.3.4@sha256:3b19d333b4100db6335266bbffbf3a666b7b61dc8a263fda79980fa47b7b68c5
     # Starts as root only to give its data folder to user 1000 (Docker makes a
     # missing folder owned by root), then drops to 1000 before serving.
     user: "0:0"
@@ -26,6 +26,9 @@ services:
       TLS_PORT: "${APP_ZECKY_ROCK_IT_PHONE_PORT}"
       # The node's peer port (8233) is not published: it only connects out.
       NODE_INBOUND: "false"
+      # Only Umbrel itself may use the page on 8080: its address on the
+      # shared app network and on Rock it's own. Other apps get 403.
+      PAGE_CLIENTS: "10.21.0.1,10.137.42.1"
     ports:
       # The Rock it iPhone app, HTTPS with the Rock's own certificate. Only
       # pairing and the status (with a paired key) answer here.
@@ -35,6 +38,11 @@ services:
       - ${APP_DATA_DIR}/data/rockit:/data
       # Read-only, only to show the free space on the drive.
       - ${APP_DATA_DIR}/data/zakura:/chain:ro
+    networks:
+      # The shared app network, so Umbrel's login proxy and the widget reach
+      # the page; and Rock it's own, to reach the node and Zaino.
+      default: {}
+      rockit: {}
 
   # The Zcash node.
   # Zakura publishes only "latest"; the digest pins the exact 1.6.0 build.
@@ -45,13 +53,14 @@ services:
     restart: on-failure
     stop_grace_period: 1m
     environment:
-      # RPC for Zaino and the status page. Not published outside Docker.
+      # RPC for Zaino and the status page. It has no password, so it is only
+      # on Rock it's own network: other Umbrel apps cannot reach it.
       ZAKURA_RPC__LISTEN_ADDR: "0.0.0.0:8232"
       ZAKURA_RPC__ENABLE_COOKIE_AUTH: "false"
     volumes:
       - ${APP_DATA_DIR}/data/zakura:/home/zebra/.cache/zakura
     networks:
-      default:
+      rockit:
         ipv4_address: $APP_ZECKY_ROCK_IT_ZAKURA_IP
 
   # Light-wallet server: Zecky Lock it and Pocket connect here.
@@ -64,7 +73,18 @@ services:
       - ${APP_DATA_DIR}/zainod.toml:/app/config/zainod.toml:ro
       - ${APP_DATA_DIR}/data/zaino:/app/data
     ports:
+      # Open to the home network for Lock it and Pocket, as before.
       - "${APP_ZECKY_ROCK_IT_WALLET_PORT}:${APP_ZECKY_ROCK_IT_WALLET_PORT}"
     networks:
-      default:
+      rockit:
         ipv4_address: $APP_ZECKY_ROCK_IT_ZAINO_IP
+
+# Rock it's own network: only its containers are on it, so other Umbrel apps
+# cannot reach the node's RPC or Zaino directly. Zakura still connects out to
+# other Zcash nodes through it.
+networks:
+  rockit:
+    ipam:
+      config:
+        - subnet: 10.137.42.0/24
+          gateway: 10.137.42.1
