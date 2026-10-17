@@ -4,7 +4,7 @@ storage:
   dataRoot: data
 category: finance
 name: Zecky Rock it
-version: "0.3.6"
+version: "0.3.7"
 tagline: Your own Zcash node for Zecky Lock it and Zecky Pocket
 icon: https://raw.githubusercontent.com/zeckyapp/rock-it/main/status/icon.svg
 description: >-
@@ -28,6 +28,10 @@ description: >-
   server by Zingo Labs), with two small Rock it patches for speed on a
   Raspberry Pi.
 releaseNotes: >-
+  0.3.7: two home-screen widgets: your Zcash node's sync, and four tiles on
+  shielded ZEC, peers, wallets and mode.
+
+
   0.3.6: the home-screen widget shows the sync again, and the page is now
   out of reach of other apps entirely. The base images are pinned to their
   exact builds.
@@ -79,10 +83,31 @@ widgets:
     example:
       type: "text-with-progress"
       link: ""
-      title: "Rock it"
-      text: "Syncing 42.0%"
-      progressLabel: "Block 1,480,000 of about 3,520,000"
+      title: "Zcash node"
+      text: "42.0%"
+      progressLabel: "Syncing · block 1,480,000 of 3,520,000"
       progress: 0.42
+  - id: "stats"
+    type: "four-stats"
+    refresh: "30s"
+    endpoint: "status:8080/api/widget/stats"
+    link: ""
+    example:
+      type: "four-stats"
+      link: ""
+      items:
+        - title: "Shielded"
+          text: "4.96M"
+          subtext: "ZEC · 29%"
+        - title: "Network"
+          text: "52"
+          subtext: "peers"
+        - title: "Wallets"
+          text: "Open"
+          subtext: "for Zecky"
+        - title: "Mode"
+          text: "Private"
+          subtext: "node"
 
 backupIgnore:
   - data/zakura/*
