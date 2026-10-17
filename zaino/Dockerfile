@@ -9,7 +9,9 @@
 ARG ZAINO_TAG=zainod-0.10.2
 ARG ZAINO_COMMIT=5ced0ae83df1f873274332dc2e6bc25acb856a62
 
-FROM docker.io/library/rust:1.98.0-bookworm AS builder
+# The digests pin the exact base images; the tags say what they are. To
+# update: look up each tag's current digest on Docker Hub and replace both.
+FROM docker.io/library/rust:1.98.0-bookworm@sha256:82150a52ec202c1b14d7817e14516c392bb7f5cfebd88f1ed531cb37ebd39922 AS builder
 ARG ZAINO_TAG
 ARG ZAINO_COMMIT
 RUN apt-get update \
@@ -23,7 +25,7 @@ COPY patches/ /patches/
 RUN git apply /patches/*.patch
 RUN cargo install --locked --path packages/zainod --bin zainod --root /out
 
-FROM docker.io/library/debian:bookworm-slim
+FROM docker.io/library/debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587
 LABEL org.opencontainers.image.source="https://github.com/zeckyapp/rock-it" \
       org.opencontainers.image.description="Zaino light-wallet server with the Zecky Rock it patches" \
       org.opencontainers.image.licenses="Apache-2.0"

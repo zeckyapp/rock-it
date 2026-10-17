@@ -29,7 +29,7 @@ services:
 
   zaino:
     build: ./zaino
-    image: ghcr.io/zeckyapp/zaino-rockit:0.10.2-rockit1
+    image: ghcr.io/zeckyapp/zaino-rockit:0.10.2-rockit2
     restart: unless-stopped
     depends_on:
       - zakura
