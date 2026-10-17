@@ -75,6 +75,14 @@ SEEN_EVERY = 60
 MAX_CONNECTIONS = 32
 MAX_PHONE_PER_ADDRESS = 8
 
+# Other wallets (Zodl, Vizor, ...): an optional Tailscale node in its own
+# container, driven through its local API socket. Unset: not available.
+TS_SOCKET = os.environ.get("TS_SOCKET", "")
+TS_DIR = os.environ.get("TS_DIR", "")
+TS_HOSTNAME = "rockit"
+WALLET_HTTPS_PORT = 9067
+TS_MAX_REPLY = 1 << 20
+
 _lock = threading.Lock()
 _cache = {"at": 0.0, "value": None}
 
@@ -269,6 +277,148 @@ def widget_stats():
             },
         ],
     }
+
+
+# --- Other wallets (Tailscale) --------------------------------------------
+#
+# Off by default. Turning it on logs the Rock's own Tailscale node in to the
+# owner's tailnet and serves HTTPS on WALLET_HTTPS_PORT in front of Zaino, so
+# wallets that need a trusted certificate (Zodl, Vizor) can connect. Tailscale
+# runs as the same user as this server, which its local API needs for changes.
+
+
+class TailscaleError(Exception):
+    pass
+
+
+def ts_call(method, path, body=None, timeout=5):
+    """One request to tailscaled's local API. Returns the decoded JSON or None."""
+    if not TS_SOCKET:
+        raise TailscaleError("not configured")
+    data = b"" if body is None else json.dumps(body).encode()
+    head = (
+        f"{method} {path} HTTP/1.0\r\n"
+        "Host: local-tailscaled.sock\r\n"
+        "Sec-Tailscale: localapi\r\n"
+        "Content-Type: application/json\r\n"
+        f"Content-Length: {len(data)}\r\n\r\n"
+    ).encode()
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.settimeout(timeout)
+    try:
+        s.connect(TS_SOCKET)
+        s.sendall(head + data)
+        raw = s.makefile("rb").read(TS_MAX_REPLY)
+    except OSError as e:
+        raise TailscaleError(str(e)) from None
+    finally:
+        s.close()
+    top, _, payload = raw.partition(b"\r\n\r\n")
+    try:
+        code = int(top.split(b" ", 2)[1])
+    except (IndexError, ValueError):
+        raise TailscaleError("bad reply") from None
+    if code >= 300:
+        raise TailscaleError(f"{path}: {code}")
+    if not payload.strip():
+        return None
+    try:
+        return json.loads(payload)
+    except ValueError:
+        raise TailscaleError("bad reply") from None
+
+
+def serve_config(name):
+    """HTTPS on the wallet port, passed on to Zaino. Nothing else."""
+    return {
+        "TCP": {str(WALLET_HTTPS_PORT): {"HTTPS": True}},
+        "Web": {
+            f"{name}:{WALLET_HTTPS_PORT}": {
+                "Handlers": {"/": {"Proxy": f"http://{ZAINO_ADDR}"}}
+            }
+        },
+    }
+
+
+def ensure_serve(name):
+    wanted = serve_config(name)
+    current = ts_call("GET", "/localapi/v0/serve-config") or {}
+    if {k: current.get(k) for k in ("TCP", "Web")} != wanted or current.get("AllowFunnel"):
+        ts_call("POST", "/localapi/v0/serve-config", wanted)
+
+
+def other_wallets():
+    """The option's state for the page.
+
+    off:         not logged in (the default)
+    login:       a login was started; `link` is Tailscale's login page
+    approve:     logged in, waiting for the owner to approve the device
+    nohttps:     logged in, but HTTPS certificates are off in the tailnet
+    on:          serving; `address` is what to enter in the wallet
+    unavailable: Tailscale cannot be reached
+    """
+    if not TS_SOCKET:
+        return {"state": "unavailable"}
+    try:
+        st = ts_call("GET", "/localapi/v0/status?peers=false") or {}
+        backend = st.get("BackendState")
+        if backend == "Running":
+            name = str((st.get("Self") or {}).get("DNSName") or "").rstrip(".")
+            if not name or name not in (st.get("CertDomains") or []):
+                return {"state": "nohttps", "name": name}
+            ensure_serve(name)
+            return {
+                "state": "on",
+                "name": name,
+                "address": f"https://{name}:{WALLET_HTTPS_PORT}",
+            }
+        if backend == "NeedsMachineAuth":
+            return {"state": "approve"}
+        link = str(st.get("AuthURL") or "")
+        if backend in ("NeedsLogin", "Starting") and link.startswith("https://"):
+            return {"state": "login", "link": link}
+        return {"state": "off"}
+    except TailscaleError:
+        return {"state": "unavailable"}
+
+
+def other_wallets_on():
+    if not TS_SOCKET:
+        return other_wallets()
+    try:
+        ts_call(
+            "PATCH",
+            "/localapi/v0/prefs",
+            {
+                "Hostname": TS_HOSTNAME,
+                "HostnameSet": True,
+                "WantRunning": True,
+                "WantRunningSet": True,
+            },
+        )
+        st = ts_call("GET", "/localapi/v0/status?peers=false") or {}
+        if st.get("BackendState") != "Running":
+            ts_call("POST", "/localapi/v0/login-interactive")
+            # The login link arrives from Tailscale's servers a moment later.
+            for _ in range(20):
+                state = other_wallets()
+                if state["state"] != "off":
+                    return state
+                time.sleep(0.25)
+    except TailscaleError:
+        return {"state": "unavailable"}
+    return other_wallets()
+
+
+def other_wallets_off():
+    if not TS_SOCKET:
+        return other_wallets()
+    try:
+        ts_call("POST", "/localapi/v0/serve-config", {})
+        ts_call("POST", "/localapi/v0/logout")
+    except TailscaleError:
+        return {"state": "unavailable"}
+    return other_wallets()
 
 
 # --- Pairing --------------------------------------------------------------
@@ -537,6 +687,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(widget())
         elif path == "/api/widget/stats":
             self.send_json(widget_stats())
+        elif path == "/api/wallets":
+            self.send_json(other_wallets())
         elif path == "/api/pairing":
             self.send_json(
                 {
@@ -579,6 +731,10 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/devices/remove":
             removed = pairing.remove(str(body.get("id", "")))
             self.send_json({"removed": removed, "devices": pairing.listing()})
+        elif path == "/api/wallets/on":
+            self.send_json(other_wallets_on())
+        elif path == "/api/wallets/off":
+            self.send_json(other_wallets_off())
         else:
             self.send_json({"error": "not found"}, 404)
 
@@ -700,14 +856,15 @@ def tls_server(cert, key, port):
 RUN_AS = int(os.environ.get("RUN_AS", "1000"))
 
 
-def own_and_drop(folder, uid=RUN_AS):
+def own_and_drop(*folders, uid=RUN_AS):
     if os.geteuid() != 0:
         return
     try:
-        os.makedirs(folder, exist_ok=True)
-        for root, dirs, files in os.walk(folder):
-            for name in [root] + [os.path.join(root, n) for n in dirs + files]:
-                os.lchown(name, uid, uid)
+        for folder in folders:
+            os.makedirs(folder, exist_ok=True)
+            for root, dirs, files in os.walk(folder):
+                for name in [root] + [os.path.join(root, n) for n in dirs + files]:
+                    os.lchown(name, uid, uid)
     except OSError:
         pass  # the server still starts; pairing then lives in memory
     os.setgroups([])
@@ -719,7 +876,9 @@ def own_and_drop(folder, uid=RUN_AS):
 
 def main():
     global pairing, TLS
-    own_and_drop(PAIR_DIR)
+    # Tailscale (other wallets) runs as the same user and keeps its state in
+    # TS_DIR, so it gets that folder too.
+    own_and_drop(PAIR_DIR, *([TS_DIR] if TS_DIR else []))
     pairing = Pairing(PAIR_DIR)
     TLS = ensure_cert(PAIR_DIR)
     if TLS:

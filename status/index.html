@@ -52,6 +52,12 @@ ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
 .devices li small{color:var(--faint)}
 .devices button{height:32px;padding:0 14px;font-size:13px}
 @media (max-width:520px){.pair{grid-template-columns:1fr;justify-items:start}}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.warn{margin:12px 0 0;padding:12px 14px;border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:10px;font-size:14px;color:var(--muted)}
+.warn strong{color:var(--paper);font-weight:500}
+a{color:var(--gold-hi)}
+.btn{display:inline-flex;align-items:center;height:40px;padding:0 18px;border-radius:999px;background:var(--gold);color:var(--ink);font-size:14px;font-weight:600;text-decoration:none}
+.btn:hover{background:var(--gold-hi)}
 footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:var(--faint);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 </style>
 </head>
@@ -112,6 +118,12 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
     <p class="note" id="hostnote" hidden><strong>Use the number, not the name.</strong> Zecky needs your Umbrel's IP address, such as 192.168.1.20. Open this page through that address, or find it in your router or in Umbrel's settings.</p>
     <p class="note"><strong>Away from home?</strong> Install Tailscale on your Umbrel and on your phone, then add a second server in each wallet with your Umbrel's Tailscale address (it starts with 100.) and port <span class="port">8137</span>.</p>
     <p class="note">The wallet port is only open inside your home network. Your router does not forward it, so it is not reachable from the internet.</p>
+  </section>
+
+  <section class="card" id="ow" hidden>
+    <h2>Other wallets</h2>
+    <span class="for">For Zodl, Vizor and other Zcash wallets · encrypted, through Tailscale</span>
+    <div id="ow-body"></div>
   </section>
 
   <footer>
@@ -216,7 +228,57 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
       .catch(function(){$('sub').textContent='Cannot reach Rock it. Retrying…';})
       .then(function(){setTimeout(tick,5000);});
   }
-  showAddress();tick();loadPair();
+  // Other wallets (Zodl, Vizor, ...) through the Rock's own Tailscale node.
+  var owTimer=null;
+  function owAddress(a){return '<div class="addr"><code id="ow-address">'+esc(a)+'</code><button type="button" data-ow="copy">Copy</button></div>';}
+  function renderOw(w){
+    var b=$('ow-body'),h='';
+    $('ow').hidden=false;
+    var privacy='<p class="warn"><strong>Before you turn this on.</strong> Your Rock joins your own Tailscale network as <em>rockit</em> and gets an HTTPS address. Its name, <em>rockit.&lt;your-tailnet&gt;.ts.net</em>, then appears in public certificate logs. That does not show your home address, and only devices in your Tailscale network can connect.</p>';
+    if(w.state==='unavailable'){
+      h='<p style="margin:0">Not available right now. If this stays, restart Zecky Rock it on your Umbrel.</p>';
+    }else if(w.state==='off'){
+      h='<p style="margin:0"><span class="dot"></span>Off. Zecky Lock it and Pocket do not need this.</p>'+
+        '<p class="note">For wallets that only connect over HTTPS. You need a Tailscale account, the Tailscale app on your phone, and HTTPS Certificates switched on in your Tailscale admin console (DNS page).</p>'+privacy+
+        '<div class="actions"><button type="button" data-ow="on">Turn on</button></div>';
+    }else if(w.state==='login'){
+      h='<p style="margin:0"><span class="dot wait"></span>Log in to Tailscale to finish.</p>'+
+        '<div class="actions"><a class="btn" href="'+esc(w.link)+'" target="_blank" rel="noopener noreferrer">Open the Tailscale login</a><button type="button" class="quiet" data-ow="off">Cancel</button></div>'+
+        '<p class="note">Log in with the account your phone uses. This page updates by itself.</p>';
+    }else if(w.state==='approve'){
+      h='<p style="margin:0"><span class="dot wait"></span>Approve the device <em>rockit</em> in your Tailscale admin console (Machines).</p>'+
+        '<div class="actions"><button type="button" class="quiet" data-ow="off">Turn off</button></div>';
+    }else if(w.state==='nohttps'){
+      h='<p style="margin:0"><span class="dot wait"></span>Almost there. Switch on <strong>HTTPS Certificates</strong> in your Tailscale admin console, on the DNS page.</p>'+
+        '<p class="note">This page updates by itself once it is on.</p>'+
+        '<div class="actions"><button type="button" class="quiet" data-ow="off">Turn off</button></div>';
+    }else if(w.state==='on'){
+      h='<p style="margin:0"><span class="dot on"></span>On. Server address for your wallet:</p>'+owAddress(w.address)+
+        '<ol><li>Connect your phone to Tailscale.</li><li><strong>Zodl:</strong> More, Advanced Settings, Choose a server, custom.</li><li><strong>Vizor:</strong> add a custom lightwalletd server.</li><li>Enter the address above.</li></ol>'+
+        '<p class="note">Turning it off logs your Rock out of Tailscale. If you turn it on again, remove the old <em>rockit</em> in your Tailscale admin console first, or the new one is named <em>rockit-1</em>.</p>'+
+        '<div class="actions"><button type="button" class="quiet" data-ow="off">Turn off</button></div>';
+    }
+    b.innerHTML=h;
+    clearTimeout(owTimer);
+    owTimer=setTimeout(loadOw,(w.state==='on'||w.state==='off')?30000:4000);
+  }
+  function loadOw(){fetch('api/wallets',{cache:'no-store'}).then(function(r){return r.json();}).then(renderOw).catch(function(){});}
+  $('ow-body').addEventListener('click',function(e){
+    var t=e.target&&e.target.getAttribute('data-ow');if(!t)return;
+    if(t==='copy'){
+      var text=$('ow-address').textContent,btn=e.target;
+      var done=function(){btn.textContent='Copied';setTimeout(function(){btn.textContent='Copy';},1500);};
+      if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(text).then(done,function(){});}
+      else{var r=document.createRange();r.selectNodeContents($('ow-address'));var s=getSelection();s.removeAllRanges();s.addRange(r);try{document.execCommand('copy');done();}catch(x){}}
+      return;
+    }
+    if(t==='on'&&!confirm('Turn on other wallets? Your Rock\'s Tailscale name becomes public in certificate logs. Your home address does not.'))return;
+    if(t==='off'&&!confirm('Turn off other wallets? Wallets using this address stop working.'))return;
+    e.target.disabled=true;
+    post('api/wallets/'+t).then(renderOw).catch(function(){e.target.disabled=false;});
+  });
+
+  showAddress();tick();loadPair();loadOw();
 })();
 </script>
 </body>
