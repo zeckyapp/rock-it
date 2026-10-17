@@ -81,6 +81,9 @@ TS_SOCKET = os.environ.get("TS_SOCKET", "")
 TS_DIR = os.environ.get("TS_DIR", "")
 TS_HOSTNAME = "rockit"
 WALLET_HTTPS_PORT = 9067
+# Where the Tailscale node passes the Rock it app's port on to: this server's
+# own encrypted phone port. Empty: worked out from this container's address.
+PHONE_FORWARD = os.environ.get("PHONE_FORWARD", "")
 TS_MAX_REPLY = 1 << 20
 
 _lock = threading.Lock()
@@ -328,10 +331,30 @@ def ts_call(method, path, body=None, timeout=5):
         raise TailscaleError("bad reply") from None
 
 
+def phone_forward():
+    """This server's encrypted phone port, as the Tailscale node reaches it."""
+    if PHONE_FORWARD:
+        return PHONE_FORWARD
+    try:
+        ip = socket.gethostbyname(socket.gethostname())
+    except OSError:
+        ip = "127.0.0.1"
+    return f"{ip}:{TLS_PORT}"
+
+
 def serve_config(name):
-    """HTTPS on the wallet port, passed on to Zaino. Nothing else."""
+    """Two ports, nothing else.
+
+    9067: HTTPS with Tailscale's trusted certificate, passed on to Zaino, for
+          any wallet (Zodl, Vizor, Lock it, Pocket).
+    TLS_PORT (8139): passed through untouched to the Rock it app's own
+          encrypted port, so the app still trusts only the Rock's fingerprint.
+    """
     return {
-        "TCP": {str(WALLET_HTTPS_PORT): {"HTTPS": True}},
+        "TCP": {
+            str(WALLET_HTTPS_PORT): {"HTTPS": True},
+            str(TLS_PORT): {"TCPForward": phone_forward()},
+        },
         "Web": {
             f"{name}:{WALLET_HTTPS_PORT}": {
                 "Handlers": {"/": {"Proxy": f"http://{ZAINO_ADDR}"}}
@@ -380,6 +403,16 @@ def other_wallets():
         return {"state": "off"}
     except TailscaleError:
         return {"state": "unavailable"}
+
+
+def phone_status():
+    """The status for a paired iPhone, plus the one address for all wallets
+    when Other wallets is on (left out when it is not)."""
+    value = dict(status())
+    w = other_wallets()
+    if w.get("state") == "on":
+        value["otherWallets"] = {"name": w["name"], "address": w["address"]}
+    return value
 
 
 def other_wallets_on():
@@ -756,7 +789,7 @@ class Handler(BaseHTTPRequestHandler):
             if pairing.check(self.headers.get("Authorization")) is None:
                 self.send_json({"error": "unpaired"}, 401)
             else:
-                self.send_json(status())
+                self.send_json(phone_status())
         else:
             self.send_json({"error": "not found"}, 404)
 
