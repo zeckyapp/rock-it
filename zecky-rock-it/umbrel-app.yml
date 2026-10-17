@@ -4,7 +4,7 @@ storage:
   dataRoot: data
 category: finance
 name: Zecky Rock it
-version: "0.3.9"
+version: "0.3.10"
 tagline: Your own Zcash node for Zecky Lock it and Zecky Pocket
 icon: https://raw.githubusercontent.com/zeckyapp/rock-it/main/status/icon.svg
 description: >-
@@ -20,14 +20,20 @@ description: >-
   The app opens to a status page that shows how far the sync is, the address
   to enter in Zecky, and a code to pair the Rock it iPhone app. The node only
   connects out, so nobody can find it from the internet. The wallet port
-  (8137) is only open on your home network. Away from home, connect through
-  Tailscale.
+  (8137) is only open on your home network. With Tailscale on, one encrypted
+  address works for every wallet, at home and away.
 
 
   Powered by Zakura (a Zcash node based on Zebra) and Zaino (a light-wallet
   server by Zingo Labs), with two small Rock it patches for speed on a
   Raspberry Pi.
 releaseNotes: >-
+  0.3.10: one Connect card. With Tailscale on, one address works for every
+  wallet and the Rock it app, at home and away, and a QR code gives your
+  wallets the server address. Without Tailscale, your home Wi-Fi address and
+  pairing work as before.
+
+
   0.3.9: optional: use other wallets like Zodl and Vizor with your Rock,
   encrypted through Tailscale. Off by default; turn it on on the Rock it page.
 
