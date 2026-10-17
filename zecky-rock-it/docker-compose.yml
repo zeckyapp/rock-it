@@ -11,7 +11,7 @@ services:
   # Status and connection page (the app's web UI and home-screen widget).
   status:
     # The digest pins the exact build (the Status image workflow reports it).
-    image: ghcr.io/zeckyapp/rockit-status:0.3.7@sha256:0629635624eca857233cbb3d248097be77e49da14e33b6d3fd7492c4e185373b
+    image: ghcr.io/zeckyapp/rockit-status:0.3.8@sha256:17ad74e4b51e8f76b9245e6f256db68700f14210add401de773e2cec3bb0b0be
     # Starts as root only to give its data folder to user 1000 (Docker makes a
     # missing folder owned by root), then drops to 1000 before serving.
     user: "0:0"
@@ -29,6 +29,10 @@ services:
       # Only Umbrel itself may use the page on 8080: the host's address on
       # Rock it's own network. Anything else gets 403.
       PAGE_CLIENTS: "10.137.42.1"
+      # Other wallets (Zodl, Vizor, ...): the Tailscale service below, off
+      # until the owner turns it on on the page.
+      TS_SOCKET: /tailscale/tailscaled.sock
+      TS_DIR: /tailscale
     ports:
       # The Rock it iPhone app, HTTPS with the Rock's own certificate. Only
       # pairing and the status (with a paired key) answer here.
@@ -38,6 +42,9 @@ services:
       - ${APP_DATA_DIR}/data/rockit:/data
       # Read-only, only to show the free space on the drive.
       - ${APP_DATA_DIR}/data/zakura:/chain:ro
+      # Tailscale's state and control socket (other wallets). The status page
+      # gives it to user 1000 on start, like its own folder.
+      - ${APP_DATA_DIR}/data/tailscale:/tailscale
     networks:
       # Only Rock it's own network. Umbrel (on the host) still reaches the
       # page and the widget here; other apps cannot reach it at all. It must
@@ -79,6 +86,28 @@ services:
     networks:
       rockit:
         ipv4_address: $APP_ZECKY_ROCK_IT_ZAINO_IP
+
+  # Other wallets (Zodl, Vizor, ...): the Rock's own Tailscale node. Logged
+  # out and serving nothing until the owner turns it on on the page; then it
+  # serves only HTTPS on 9067 in front of Zaino, inside the owner's tailnet.
+  # tailscaled runs directly (Tailscale's start script stops when nobody logs
+  # in within a minute), as user 1000 so the status page may drive it, in
+  # userspace mode so it needs no root or network device.
+  tailscale:
+    image: docker.io/tailscale/tailscale:v1.104.1@sha256:87c55d6be56ad85b3d8bceca5f87f73de288c609131460dd1be1874c250cc41d
+    user: "1000:1000"
+    restart: on-failure
+    depends_on:
+      - status
+    entrypoint:
+      - tailscaled
+      - --tun=userspace-networking
+      - --state=/var/lib/tailscale/tailscaled.state
+      - --socket=/var/lib/tailscale/tailscaled.sock
+    volumes:
+      - ${APP_DATA_DIR}/data/tailscale:/var/lib/tailscale
+    networks:
+      rockit: {}
 
 # Rock it's own network: only its containers are on it, so other Umbrel apps
 # cannot reach the node's RPC or Zaino directly. Zakura still connects out to
