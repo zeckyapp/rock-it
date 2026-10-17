@@ -14,7 +14,7 @@ import { version as APP_VERSION } from '../../package.json';
 import { checkRock, Reached } from '../lib/check';
 import { loadKey } from '../lib/key';
 import { Rock } from '../lib/rock';
-import { formatGB, RockError, summarize } from '../lib/status';
+import { formatGB, RockError, summarize, tiles } from '../lib/status';
 import { fonts, makeStyles, space, useColors } from '../theme';
 
 const POLL_MS = 10_000;
@@ -124,7 +124,7 @@ export function StatusScreen({ rock, onEdit }: Props) {
     >
       <View style={styles.header}>
         <View style={styles.flex}>
-          <Text style={styles.eyebrow}>My Rock</Text>
+          <Text style={styles.eyebrow}>Zcash node</Text>
           <Text style={styles.name} numberOfLines={1}>
             {rock.name}
           </Text>
@@ -173,14 +173,36 @@ export function StatusScreen({ rock, onEdit }: Props) {
       ) : null}
 
       {status ? (
+        <View style={styles.tiles}>
+          {tiles(status).map(t => (
+            <View
+              key={t.title}
+              style={styles.tile}
+              accessible
+              accessibilityLabel={`${t.title}: ${t.text} ${t.subtext}`}
+            >
+              <Text style={styles.tileTitle}>{t.title}</Text>
+              <Text
+                style={styles.tileText}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                {t.text}
+              </Text>
+              <Text style={styles.tileSub} numberOfLines={1}>
+                {t.subtext}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {status ? (
         <View style={styles.card}>
           <Row
             label="Reached"
             value={reached?.via === 'away' ? 'Through Tailscale' : 'At home'}
-          />
-          <Row
-            label="Peers"
-            value={status.node.peers == null ? '–' : String(status.node.peers)}
+            last={!status.disk && !status.version}
           />
           {status.disk ? (
             <Row
@@ -188,23 +210,9 @@ export function StatusScreen({ rock, onEdit }: Props) {
               value={`${formatGB(status.disk.free)} free of ${formatGB(
                 status.disk.total,
               )}`}
+              last={!status.version}
             />
           ) : null}
-          {status.privacy ? (
-            <Row
-              label="Privacy"
-              value={
-                status.privacy.inbound
-                  ? 'Open to other nodes'
-                  : 'Private, connects out only'
-              }
-            />
-          ) : null}
-          <Row
-            label="Wallets"
-            value={status.walletServer.open ? 'Can connect' : 'Not yet'}
-            last={!status.version}
-          />
           {status.version ? (
             <Row label="Rock it on Umbrel" value={status.version} last />
           ) : null}
@@ -302,8 +310,31 @@ const useStyles = makeStyles(colors => ({
     lineHeight: 21,
     color: colors.textMuted,
   },
-  card: {
+  tiles: {
     marginTop: space.md,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  tile: {
+    flexBasis: '47%',
+    flexGrow: 1,
+    borderRadius: 14,
+    backgroundColor: colors.inkRaised,
+    paddingHorizontal: space.md,
+    paddingVertical: 14,
+  },
+  tileTitle: { fontFamily: fonts.sans, fontSize: 13, color: colors.textMuted },
+  tileText: {
+    fontFamily: fonts.serif,
+    fontSize: 30,
+    color: colors.text,
+    fontVariant: ['tabular-nums'],
+    marginTop: 2,
+  },
+  tileSub: { fontFamily: fonts.sans, fontSize: 13, color: colors.textMuted },
+  card: {
+    marginTop: space.xs,
     borderRadius: 14,
     backgroundColor: colors.inkRaised,
     paddingHorizontal: space.md,

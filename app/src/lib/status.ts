@@ -11,6 +11,8 @@ export interface RockStatus {
     estimatedHeight?: number;
     progress?: number;
     peers?: number | null;
+    /** Shielded and total ZEC in zatoshi (Rock it 0.3.6 and newer). */
+    pools?: { shieldedZat: number; totalZat: number } | null;
   };
   walletServer: { open: boolean; port: number };
   disk: { free: number; total: number } | null;
@@ -33,6 +35,9 @@ export function parseStatus(raw: unknown): RockStatus | null {
   const ws = (r.walletServer ?? {}) as Record<string, unknown>;
   const disk = r.disk as Record<string, unknown> | null | undefined;
   const pv = r.privacy as Record<string, unknown> | null | undefined;
+  const pl = node.pools as Record<string, unknown> | null | undefined;
+  const shieldedZat = num(pl?.shieldedZat);
+  const totalZat = num(pl?.totalZat);
   const free = num(disk?.free);
   const total = num(disk?.total);
   return {
@@ -44,6 +49,10 @@ export function parseStatus(raw: unknown): RockStatus | null {
       estimatedHeight: num(node.estimatedHeight),
       progress: num(node.progress),
       peers: num(node.peers) ?? null,
+      pools:
+        shieldedZat != null && totalZat != null && totalZat > 0
+          ? { shieldedZat, totalZat }
+          : null,
     },
     walletServer: {
       open: ws.open === true,
@@ -133,15 +142,15 @@ export function summarize(s: RockStatus): Summary {
     case 'starting':
       return {
         headline: 'Starting',
-        detail: 'The node is waking up.',
+        detail: 'The node is starting',
         progress: 0,
         tone: 'busy',
       };
     case 'syncing': {
       const p = Math.min(Math.max(s.node.progress ?? 0, 0), 1);
       return {
-        headline: `Syncing ${(Math.floor(p * 1000) / 10).toFixed(1)}%`,
-        detail: `Block ${fmt(height)} of about ${fmt(estimated)}`,
+        headline: `${(Math.floor(p * 1000) / 10).toFixed(1)}%`,
+        detail: `Syncing · block ${fmt(height)} of ${fmt(estimated)}`,
         progress: p,
         tone: 'busy',
       };
@@ -149,16 +158,61 @@ export function summarize(s: RockStatus): Summary {
     case 'opening':
       return {
         headline: 'Almost ready',
-        detail: 'The chain is in. Opening the door for your wallets.',
+        detail: 'Opening the wallet port',
         progress: 1,
         tone: 'busy',
       };
     case 'ready':
       return {
-        headline: 'Live',
-        detail: `Block ${fmt(height)}`,
+        headline: 'Synced',
+        detail: `Block ${fmt(height)} · checked by you`,
         progress: 1,
         tone: 'ok',
       };
   }
+}
+
+/** 4963154.66 ZEC -> '4.96M', 474460.97 -> '474K', 812.5 -> '813' (as on the Umbrel). */
+export function shortZec(zat: number): string {
+  const zec = zat / 1e8;
+  if (zec >= 1e6) return `${(zec / 1e6).toFixed(2)}M`;
+  if (zec >= 1e3) return `${(zec / 1e3).toFixed(0)}K`;
+  return zec.toFixed(0);
+}
+
+export interface Tile {
+  title: string;
+  text: string;
+  subtext: string;
+}
+
+/** The four tiles, with the same words as the Umbrel's Zcash node widget. */
+export function tiles(s: RockStatus): Tile[] {
+  const n = s.node;
+  const p = n.reachable ? n.pools : null;
+  const peers = n.reachable ? n.peers : null;
+  return [
+    p
+      ? {
+          title: 'Shielded',
+          text: shortZec(p.shieldedZat),
+          subtext: `ZEC · ${((p.shieldedZat * 100) / p.totalZat).toFixed(0)}%`,
+        }
+      : { title: 'Shielded', text: '–', subtext: 'ZEC' },
+    {
+      title: 'Network',
+      text: peers == null ? '–' : fmt(peers),
+      subtext: 'peers',
+    },
+    {
+      title: 'Wallets',
+      text: s.walletServer.open ? 'Open' : 'Closed',
+      subtext: 'for Zecky',
+    },
+    {
+      title: 'Mode',
+      text: s.privacy == null ? '–' : s.privacy.inbound ? 'Supporter' : 'Private',
+      subtext: 'node',
+    },
+  ];
 }

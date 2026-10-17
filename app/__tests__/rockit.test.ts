@@ -11,7 +11,9 @@ import {
   fetchStatus,
   parseStatus,
   RockError,
+  shortZec,
   summarize,
+  tiles,
 } from '../src/lib/status';
 
 jest.mock('react-native', () => ({
@@ -47,9 +49,11 @@ const ready = {
     estimatedHeight: 3520104,
     progress: 1,
     peers: 8,
+    pools: { shieldedZat: 496315466000000, totalZat: 1500000000000000 },
   },
   walletServer: { open: true, port: 8137 },
   disk: { free: 1.62e12, total: 2e12 },
+  privacy: { inbound: false },
   version: '0.1.1',
 };
 
@@ -97,8 +101,8 @@ describe('status', () => {
 
   it('says it plainly', () => {
     expect(summarize(parseStatus(ready)!)).toMatchObject({
-      headline: 'Live',
-      detail: 'Block 3,520,104',
+      headline: 'Synced',
+      detail: 'Block 3,520,104 · checked by you',
       tone: 'ok',
     });
     const syncing = parseStatus({
@@ -107,9 +111,40 @@ describe('status', () => {
       node: { ...ready.node, height: 1480000, progress: 0.42099 },
     })!;
     expect(summarize(syncing)).toMatchObject({
-      headline: 'Syncing 42.0%',
-      detail: 'Block 1,480,000 of about 3,520,104',
+      headline: '42.0%',
+      detail: 'Syncing · block 1,480,000 of 3,520,104',
     });
+  });
+});
+
+describe('tiles', () => {
+  it('writes ZEC short, as on the Umbrel', () => {
+    expect(shortZec(496315466000000)).toBe('4.96M');
+    expect(shortZec(47446097000000)).toBe('474K');
+    expect(shortZec(81250000000)).toBe('813');
+  });
+
+  it('shows the four tiles with the Umbrel words', () => {
+    expect(tiles(parseStatus(ready)!)).toEqual([
+      { title: 'Shielded', text: '4.96M', subtext: 'ZEC · 33%' },
+      { title: 'Network', text: '8', subtext: 'peers' },
+      { title: 'Wallets', text: 'Open', subtext: 'for Zecky' },
+      { title: 'Mode', text: 'Private', subtext: 'node' },
+    ]);
+  });
+
+  it('shows a dash when the node is not there yet', () => {
+    const t = tiles(
+      parseStatus({
+        phase: 'starting',
+        node: { reachable: false },
+        walletServer: { open: false, port: 8137 },
+        disk: null,
+        privacy: { inbound: true },
+        version: '0.3.9',
+      })!,
+    );
+    expect(t.map(x => x.text)).toEqual(['–', '–', 'Closed', 'Supporter']);
   });
 });
 
