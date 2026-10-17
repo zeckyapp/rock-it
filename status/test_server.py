@@ -4,7 +4,9 @@ import base64
 import hashlib
 import json
 import os
+import socket
 import ssl
+import time
 import tempfile
 import threading
 import unittest
@@ -137,6 +139,70 @@ class WidgetTest(unittest.TestCase):
         self.fake("starting")
         tiles = {i["title"]: i["text"] for i in server.widget_stats()["items"]}
         self.assertEqual((tiles["Shielded"], tiles["Network"], tiles["Wallets"]), ("–", "–", "Closed"))
+
+
+class LimitTest(unittest.TestCase):
+    def test_per_address_and_total(self):
+        httpd = server.LimitedServer(("127.0.0.1", 0), server.Handler, total=3, per_address=2)
+        try:
+            self.assertTrue(httpd.admit("192.168.1.20"))
+            self.assertTrue(httpd.admit("192.168.1.20"))
+            # A third from the same address is refused; another address gets in.
+            self.assertFalse(httpd.admit("192.168.1.20"))
+            self.assertTrue(httpd.admit("192.168.1.21"))
+            # Now the total is full for everyone.
+            self.assertFalse(httpd.admit("192.168.1.22"))
+            httpd.release("192.168.1.20")
+            self.assertTrue(httpd.admit("192.168.1.22"))
+            self.assertEqual(httpd.by_address, {"192.168.1.20": 1, "192.168.1.21": 1, "192.168.1.22": 1})
+        finally:
+            httpd.server_close()
+
+    def test_full_server_closes_new_connections_and_recovers(self):
+        saved = server.status
+        self.addCleanup(setattr, server, "status", saved)
+        server.status = lambda: {"phase": "starting", "node": {"reachable": False}}
+        httpd = server.LimitedServer(("127.0.0.1", 0), server.Handler, total=3)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        port = httpd.server_address[1]
+        try:
+            # Three idle connections fill the server.
+            idle = [socket.create_connection(("127.0.0.1", port)) for _ in range(3)]
+            for _ in range(50):
+                if httpd.active == 3:
+                    break
+                time.sleep(0.02)
+            self.assertEqual(httpd.active, 3)
+            # The next one is closed straight away.
+            extra = socket.create_connection(("127.0.0.1", port))
+            extra.settimeout(2)
+            self.assertEqual(extra.recv(1), b"")
+            extra.close()
+            # Once they go, the server answers again.
+            for s in idle:
+                s.close()
+            for _ in range(100):
+                if httpd.active == 0:
+                    break
+                time.sleep(0.02)
+            url = f"http://127.0.0.1:{port}/api/widget"
+            with urllib.request.urlopen(url, timeout=2) as r:
+                self.assertEqual(r.status, 200)
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+
+    def test_real_servers_are_limited(self):
+        self.assertEqual(server.MAX_CONNECTIONS, 32)
+        self.assertEqual(server.MAX_PHONE_PER_ADDRESS, 8)
+        folder = tempfile.mkdtemp()
+        tls = server.ensure_cert(folder)
+        phone = server.tls_server(tls[0], tls[1], 0)
+        try:
+            self.assertIsInstance(phone, server.LimitedServer)
+            self.assertEqual((phone.total, phone.per_address), (32, 8))
+        finally:
+            phone.server_close()
 
 
 class HttpTest(unittest.TestCase):

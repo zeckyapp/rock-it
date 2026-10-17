@@ -68,6 +68,12 @@ MAX_DEVICES = 10
 MAX_NAME = 40
 MAX_BODY = 2048
 SEEN_EVERY = 60
+# Connections at once, so nobody on the network can tie the server up by
+# opening thousands of them. Normal use (the page, both widgets, ten paired
+# iPhones) stays far below. The page port only sees Umbrel itself, so it has
+# no per-address limit.
+MAX_CONNECTIONS = 32
+MAX_PHONE_PER_ADDRESS = 8
 
 _lock = threading.Lock()
 _cache = {"at": 0.0, "value": None}
@@ -621,12 +627,63 @@ class PhoneHandler(Handler):
     secure = True
 
 
+class LimitedServer(ThreadingHTTPServer):
+    """A threading server that takes at most `total` connections at once, and
+    at most `per_address` from one address. Over the limit, a new connection
+    is closed straight away and the server carries on."""
+
+    def __init__(self, address, handler, total=MAX_CONNECTIONS, per_address=None):
+        self.total = total
+        self.per_address = per_address
+        self.active = 0
+        self.by_address = {}
+        self.limit_lock = threading.Lock()
+        super().__init__(address, handler)
+
+    def admit(self, ip):
+        with self.limit_lock:
+            if self.active >= self.total:
+                return False
+            if self.per_address and self.by_address.get(ip, 0) >= self.per_address:
+                return False
+            self.active += 1
+            self.by_address[ip] = self.by_address.get(ip, 0) + 1
+            return True
+
+    def release(self, ip):
+        with self.limit_lock:
+            self.active -= 1
+            left = self.by_address.get(ip, 1) - 1
+            if left > 0:
+                self.by_address[ip] = left
+            else:
+                self.by_address.pop(ip, None)
+
+    def process_request(self, request, client_address):
+        if not self.admit(client_address[0]):
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except Exception:  # noqa: BLE001 - the thread did not start
+            self.release(client_address[0])
+            self.shutdown_request(request)
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self.release(client_address[0])
+
+
 def tls_server(cert, key, port):
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     # Every iPhone that runs the Rock it app speaks TLS 1.3.
     context.minimum_version = ssl.TLSVersion.TLSv1_3
     context.load_cert_chain(cert, key)
-    httpd = ThreadingHTTPServer(("0.0.0.0", port), PhoneHandler)
+    httpd = LimitedServer(
+        ("0.0.0.0", port), PhoneHandler, per_address=MAX_PHONE_PER_ADDRESS
+    )
     # A refused handshake (an old TLS version, a port scan) is not worth a
     # stack trace in the logs.
     httpd.handle_error = lambda request, client_address: None
@@ -668,7 +725,7 @@ def main():
     if TLS:
         phone = tls_server(TLS[0], TLS[1], TLS_PORT)
         threading.Thread(target=phone.serve_forever, daemon=True).start()
-    ThreadingHTTPServer(("0.0.0.0", LISTEN_PORT), Handler).serve_forever()
+    LimitedServer(("0.0.0.0", LISTEN_PORT), Handler).serve_forever()
 
 
 if __name__ == "__main__":
