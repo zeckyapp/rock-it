@@ -205,6 +205,175 @@ class LimitTest(unittest.TestCase):
             phone.server_close()
 
 
+class FakeTailscale:
+    """A stand-in for tailscaled's local API on a Unix socket."""
+
+    def __init__(self):
+        import socketserver
+        from http.server import BaseHTTPRequestHandler
+
+        self.backend = "NeedsLogin"
+        self.auth_url = ""
+        self.name = "rockit.tail1234.ts.net."
+        self.certs = ["rockit.tail1234.ts.net"]
+        self.serve = {}
+        self.prefs = {}
+        self.calls = []
+        fake = self
+
+        class H(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def reply(self, code, value=None):
+                body = b"" if value is None else json.dumps(value).encode()
+                self.send_response(code)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def body(self):
+                n = int(self.headers.get("Content-Length") or 0)
+                return json.loads(self.rfile.read(n)) if n else None
+
+            def handle_one(self):
+                path = self.path.split("?")[0]
+                fake.calls.append((self.command, path))
+                if self.headers.get("Sec-Tailscale") != "localapi":
+                    return self.reply(403)
+                if (self.command, path) == ("GET", "/localapi/v0/status"):
+                    return self.reply(200, {
+                        "BackendState": fake.backend, "AuthURL": fake.auth_url,
+                        "Self": {"DNSName": fake.name}, "CertDomains": fake.certs})
+                if (self.command, path) == ("GET", "/localapi/v0/serve-config"):
+                    return self.reply(200, fake.serve)
+                if (self.command, path) == ("POST", "/localapi/v0/serve-config"):
+                    fake.serve = self.body() or {}
+                    return self.reply(200)
+                if (self.command, path) == ("PATCH", "/localapi/v0/prefs"):
+                    fake.prefs.update(self.body() or {})
+                    return self.reply(200, fake.prefs)
+                if (self.command, path) == ("POST", "/localapi/v0/login-interactive"):
+                    fake.auth_url = "https://login.tailscale.com/a/abc123"
+                    return self.reply(204)
+                if (self.command, path) == ("POST", "/localapi/v0/logout"):
+                    fake.backend, fake.auth_url = "NeedsLogin", ""
+                    return self.reply(204)
+                return self.reply(404)
+
+            do_GET = do_POST = do_PATCH = handle_one
+
+            def address_string(self):
+                return "local"
+
+        self.path = os.path.join(tempfile.mkdtemp(), "tailscaled.sock")
+        self.server = socketserver.ThreadingUnixStreamServer(self.path, H)
+        self.server.daemon_threads = True
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def close(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+
+class OtherWalletsTest(unittest.TestCase):
+    def setUp(self):
+        self.ts = FakeTailscale()
+        self.addCleanup(self.ts.close)
+        saved = (server.TS_SOCKET, server.ZAINO_ADDR)
+        self.addCleanup(lambda: setattr(server, "TS_SOCKET", saved[0]))
+        self.addCleanup(lambda: setattr(server, "ZAINO_ADDR", saved[1]))
+        server.TS_SOCKET = self.ts.path
+        server.ZAINO_ADDR = "10.137.42.11:8137"
+
+    def test_unavailable_without_tailscale(self):
+        server.TS_SOCKET = ""
+        self.assertEqual(server.other_wallets(), {"state": "unavailable"})
+        server.TS_SOCKET = "/nonexistent/tailscaled.sock"
+        self.assertEqual(server.other_wallets(), {"state": "unavailable"})
+        self.assertEqual(server.other_wallets_on(), {"state": "unavailable"})
+
+    def test_off_by_default(self):
+        self.assertEqual(server.other_wallets(), {"state": "off"})
+        self.assertEqual(self.ts.serve, {})
+
+    def test_turn_on_names_the_node_and_shows_the_login(self):
+        state = server.other_wallets_on()
+        self.assertEqual(state, {"state": "login", "link": "https://login.tailscale.com/a/abc123"})
+        self.assertEqual(self.ts.prefs["Hostname"], "rockit")
+        self.assertTrue(self.ts.prefs["WantRunning"])
+        self.assertIn(("POST", "/localapi/v0/login-interactive"), self.ts.calls)
+
+    def test_only_https_login_links(self):
+        self.ts.auth_url = "javascript:alert(1)"
+        self.assertEqual(server.other_wallets(), {"state": "off"})
+
+    def test_on_serves_only_the_wallet_port_to_zaino(self):
+        self.ts.backend = "Running"
+        state = server.other_wallets()
+        self.assertEqual(state["state"], "on")
+        self.assertEqual(state["address"], "https://rockit.tail1234.ts.net:9067")
+        self.assertEqual(self.ts.serve, {
+            "TCP": {"9067": {"HTTPS": True}},
+            "Web": {"rockit.tail1234.ts.net:9067": {
+                "Handlers": {"/": {"Proxy": "http://10.137.42.11:8137"}}}},
+        })
+        # Already right: not written again.
+        posts = self.ts.calls.count(("POST", "/localapi/v0/serve-config"))
+        server.other_wallets()
+        self.assertEqual(self.ts.calls.count(("POST", "/localapi/v0/serve-config")), posts)
+
+    def test_on_without_https_certificates(self):
+        self.ts.backend, self.ts.certs = "Running", None
+        self.assertEqual(server.other_wallets()["state"], "nohttps")
+        self.assertEqual(self.ts.serve, {})
+
+    def test_waiting_for_approval(self):
+        self.ts.backend = "NeedsMachineAuth"
+        self.assertEqual(server.other_wallets(), {"state": "approve"})
+
+    def test_turn_off_stops_serving_and_logs_out(self):
+        self.ts.backend = "Running"
+        server.other_wallets()
+        self.assertEqual(server.other_wallets_off(), {"state": "off"})
+        self.assertEqual(self.ts.serve, {})
+        self.assertIn(("POST", "/localapi/v0/logout"), self.ts.calls)
+
+    def test_page_routes(self):
+        httpd = server.LimitedServer(("127.0.0.1", 0), server.Handler)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(httpd.server_close)
+        self.addCleanup(httpd.shutdown)
+        url = f"http://127.0.0.1:{httpd.server_address[1]}"
+
+        def call(path, body=None, headers=None):
+            data = None if body is None else json.dumps(body).encode()
+            req = urllib.request.Request(url + path, data=data, headers=headers or {})
+            if data is not None:
+                req.add_header("Content-Type", "application/json")
+            try:
+                with urllib.request.urlopen(req, timeout=5) as r:
+                    return r.status, json.load(r)
+            except urllib.error.HTTPError as e:
+                return e.code, json.load(e)
+
+        self.assertEqual(call("/api/wallets"), (200, {"state": "off"}))
+        # Turning on needs the page's own header.
+        self.assertEqual(call("/api/wallets/on", {})[0], 403)
+        self.assertEqual(self.ts.prefs, {})
+        status, state = call("/api/wallets/on", {}, {"X-Rock-It": "1"})
+        self.assertEqual((status, state["state"]), (200, "login"))
+        # Other apps (not PAGE_CLIENTS) get nothing.
+        saved = server.PAGE_CLIENTS
+        server.PAGE_CLIENTS = frozenset({"10.137.42.1"})
+        try:
+            self.assertEqual(call("/api/wallets")[0], 403)
+            self.assertEqual(call("/api/wallets/off", {}, {"X-Rock-It": "1"})[0], 403)
+        finally:
+            server.PAGE_CLIENTS = saved
+        self.assertEqual(call("/api/wallets/off", {}, {"X-Rock-It": "1"}), (200, {"state": "off"}))
+
+
 class HttpTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
