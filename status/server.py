@@ -50,6 +50,12 @@ APP_VERSION = os.environ.get("APP_VERSION", "")
 # Whether other Zcash nodes can connect in on 8233. The Umbrel app does not
 # publish that port, so the node only connects out.
 NODE_INBOUND = os.environ.get("NODE_INBOUND", "false").lower() == "true"
+# Who may use the page on 8080: only Umbrel itself (its login proxy and the
+# widget), which connects from the host's own address on each Docker network.
+# Other apps share that network and get 403. Unset: only this container.
+PAGE_CLIENTS = frozenset(
+    a.strip() for a in os.environ.get("PAGE_CLIENTS", "127.0.0.1").split(",") if a.strip()
+)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CACHE_SECONDS = 5
@@ -389,7 +395,11 @@ TLS = None  # (cert, key, fingerprint), set in main()
 
 
 class Handler(BaseHTTPRequestHandler):
-    """The page and its API, behind the Umbrel login (plain HTTP on 8080)."""
+    """The page and its API, behind the Umbrel login (plain HTTP on 8080).
+
+    Only Umbrel itself may connect here (PAGE_CLIENTS), so other apps on the
+    Umbrel cannot go around the login.
+    """
 
     server_version = "RockIt"
     sys_version = ""
@@ -427,7 +437,15 @@ class Handler(BaseHTTPRequestHandler):
     def path_only(self):
         return self.path.split("?", 1)[0]
 
+    def page_refused(self):
+        if self.secure or self.client_address[0] in PAGE_CLIENTS:
+            return False
+        self.send_json({"error": "forbidden"}, 403)
+        return True
+
     def do_GET(self):  # noqa: N802 - http.server naming
+        if self.page_refused():
+            return
         path = self.path_only()
         if path.startswith("/phone/"):
             self.phone_get(path)
@@ -457,6 +475,8 @@ class Handler(BaseHTTPRequestHandler):
     do_HEAD = do_GET
 
     def do_POST(self):  # noqa: N802
+        if self.page_refused():
+            return
         path = self.path_only()
         body = self.read_json()
         if body is None:
