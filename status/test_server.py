@@ -155,6 +155,30 @@ class HttpTest(unittest.TestCase):
         self.assertTrue(res["removed"])
         self.assertEqual(self.call(self.phone_url + "/phone/status", headers=auth)[0], 401)
 
+    def test_other_apps_get_nothing_from_the_page(self):
+        # As on the Umbrel: only the host may use the page, and this test
+        # client (127.0.0.1) plays another app.
+        saved = server.PAGE_CLIENTS
+        server.PAGE_CLIENTS = frozenset({"10.21.0.1"})
+        try:
+            for path in ("/", "/api/status", "/api/widget", "/api/pairing"):
+                self.assertEqual(self.call(self.page_url + path)[0], 403, path)
+            rock = {"X-Rock-It": "1"}
+            for path in ("/api/pairing/new", "/api/devices/remove"):
+                self.assertEqual(
+                    self.call(self.page_url + path, {"id": "x"}, rock)[0], 403, path
+                )
+        finally:
+            server.PAGE_CLIENTS = saved
+
+    def test_phone_port_is_not_limited_to_the_host(self):
+        saved = server.PAGE_CLIENTS
+        server.PAGE_CLIENTS = frozenset({"10.21.0.1"})
+        try:
+            self.assertEqual(self.call(self.phone_url + "/phone/hello")[0], 200)
+        finally:
+            server.PAGE_CLIENTS = saved
+
     def test_certificate_is_kept(self):
         folder = tempfile.mkdtemp()
         first = server.ensure_cert(folder)
