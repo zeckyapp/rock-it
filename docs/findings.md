@@ -71,5 +71,10 @@ block. See the patches in `zaino/patches/`.
   the network (10.21.0.1).
 - From 0.3.5 the node and Zaino are on Rock it's own network (10.137.42.0/24),
   and the status page answers only the host's addresses (`PAGE_CLIENTS`).
+- The status container must be on exactly one network. Umbrel finds a
+  widget's address with `docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'`,
+  which glues all addresses together; with two networks the widget stayed
+  empty ("ENOTFOUND status"). From 0.3.6 status is only on Rock it's own
+  network, which the host (and so the login proxy and widget) still reaches.
 - Apps on the host network (Tailscale) count as the host and are not shut
   out. They already have full access to the Umbrel.
