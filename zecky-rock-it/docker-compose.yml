@@ -11,7 +11,7 @@ services:
   # Status and connection page (the app's web UI and home-screen widget).
   status:
     # The digest pins the exact build (the Status image workflow reports it).
-    image: ghcr.io/zeckyapp/rockit-status:0.3.10@sha256:150ec71b389ff4c530a86186c6ba1c5095971acd3d1159d5c057511463a026a9
+    image: ghcr.io/zeckyapp/rockit-status:0.3.11@sha256:2bb7e0331ee598d1f88b2b7c5133e4dfd2d998a83e6db96bde24f8f148371b41
     # Starts as root only to give its data folder to user 1000 (Docker makes a
     # missing folder owned by root), then drops to 1000 before serving.
     user: "0:0"
