@@ -50,6 +50,21 @@ one block per root, which runs far past the wallet's 30-second limit. In
 ephemeral mode even its "does this block exist" check downloads the full
 block. See the patches in `zaino/patches/`.
 
+Measured again in October 2026 on the same Pi, per subtree root (1,128 Sapling
+roots):
+
+| Call | Each | All roots |
+| --- | --- | --- |
+| `getblock` (verbosity 1, stock Zaino) | about 1.1 s | about 20 min |
+| `z_gettreestate` at the end height | about 2.6 s | about 47 min |
+| `getblockhash` at the end height | about 3 ms | 3.3 s |
+
+Rock it's patch leaves the completing block hash empty, which wallets on the
+ECC SDK do not use. Zaino has no `getblockhash` call yet; with one, the full
+answer (hash included) is fast too. Reported upstream so it can be fixed for
+everyone and the patches dropped: zingolabs/zaino#1665 (subtree roots, with
+these measurements) and zingolabs/zaino#1673 (tree state by height).
+
 ## Wallets
 
 - react-native-zcash 0.13.5 always connects with TLS. Lock it and Pocket patch
