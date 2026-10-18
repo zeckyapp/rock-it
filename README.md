@@ -57,7 +57,9 @@ Store, the three dots, Community App Stores, add
 The app runs Zakura, Zaino and a small status page (`status/`). The page shows
 the sync, the address to enter in Zecky and a QR code to pair the Rock it
 iPhone app, and adds a sync widget to the Umbrel home screen. Wallets connect
-on port 8137; the node's RPC stays inside Docker. The node's peer port (8233)
+on port 8137 (or, on a fresh install where another app already uses 8137 or
+8139, the next free pair such as 18137/18139, kept in `data/ports.env` and
+shown on the page); the node's RPC stays inside Docker. The node's peer port (8233)
 is not published, so it only connects out and nobody can find it from the
 internet.
 
