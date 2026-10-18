@@ -4,7 +4,7 @@ storage:
   dataRoot: data
 category: finance
 name: Zecky Rock it
-version: "0.3.10"
+version: "0.3.11"
 tagline: Your own Zcash node for Zecky Lock it and Zecky Pocket
 icon: https://raw.githubusercontent.com/zeckyapp/rock-it/main/status/icon.svg
 description: >-
@@ -28,6 +28,10 @@ description: >-
   server by Zingo Labs), with two small Rock it patches for speed on a
   Raspberry Pi.
 releaseNotes: >-
+  0.3.11: the widget tiles fit: Shielded shows its share of all ZEC, and
+  Wallets says Ready.
+
+
   0.3.10: one Connect card. With Tailscale on, one address works for every
   wallet and the Rock it app, at home and away, and a QR code gives your
   wallets the server address. Without Tailscale, your home Wi-Fi address and
@@ -111,14 +115,14 @@ widgets:
       link: ""
       items:
         - title: "Shielded"
-          text: "4.96M"
-          subtext: "ZEC · 29%"
+          text: "29%"
+          subtext: "of ZEC"
         - title: "Network"
           text: "52"
           subtext: "peers"
         - title: "Wallets"
-          text: "Open"
-          subtext: "for Zecky"
+          text: "Ready"
+          subtext: ""
         - title: "Mode"
           text: "Private"
           subtext: "node"
