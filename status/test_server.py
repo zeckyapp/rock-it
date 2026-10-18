@@ -132,13 +132,13 @@ class WidgetTest(unittest.TestCase):
         w = server.widget_stats()
         self.assertEqual(w["type"], "four-stats")
         tiles = {i["title"]: (i["text"], i["subtext"]) for i in w["items"]}
-        self.assertEqual(tiles["Shielded"], ("4.96M", "ZEC · 29%"))
+        self.assertEqual(tiles["Shielded"], ("29%", "of ZEC"))
         self.assertEqual(tiles["Network"], ("52", "peers"))
-        self.assertEqual(tiles["Wallets"], ("Open", "for Zecky"))
+        self.assertEqual(tiles["Wallets"], ("Ready", ""))
         self.assertEqual(tiles["Mode"], ("Private", "node"))
         self.fake("starting")
         tiles = {i["title"]: i["text"] for i in server.widget_stats()["items"]}
-        self.assertEqual((tiles["Shielded"], tiles["Network"], tiles["Wallets"]), ("–", "–", "Closed"))
+        self.assertEqual((tiles["Shielded"], tiles["Network"], tiles["Wallets"]), ("–", "–", "Not ready"))
 
 
 class LimitTest(unittest.TestCase):

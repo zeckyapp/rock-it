@@ -239,16 +239,6 @@ def widget():
     }
 
 
-def short_zec(zat):
-    """4963154.66 ZEC -> '4.96M', 474460.97 -> '474K', 812.5 -> '813'."""
-    zec = zat / 100_000_000
-    if zec >= 1_000_000:
-        return f"{zec / 1_000_000:.2f}M"
-    if zec >= 1_000:
-        return f"{zec / 1_000:.0f}K"
-    return f"{zec:.0f}"
-
-
 def widget_stats():
     """The four-tile widget: what the node does for privacy and the network."""
     s = status()
@@ -256,9 +246,9 @@ def widget_stats():
     p = n.get("pools") if n.get("reachable") else None
     if p:
         share = p["shieldedZat"] * 100 / p["totalZat"]
-        shielded = (short_zec(p["shieldedZat"]), f"ZEC · {share:.0f}%")
+        shielded = (f"{share:.0f}%", "of ZEC")
     else:
-        shielded = ("–", "ZEC")
+        shielded = ("–", "of ZEC")
     peers = n.get("peers") if n.get("reachable") else None
     inbound = s["privacy"]["inbound"]
     return {
@@ -270,8 +260,8 @@ def widget_stats():
             {"title": "Network", "text": "–" if peers is None else f"{peers:,}", "subtext": "peers"},
             {
                 "title": "Wallets",
-                "text": "Open" if s["walletServer"]["open"] else "Closed",
-                "subtext": "for Zecky",
+                "text": "Ready" if s["walletServer"]["open"] else "Not ready",
+                "subtext": "",
             },
             {
                 "title": "Mode",
