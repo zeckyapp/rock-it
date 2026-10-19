@@ -4,7 +4,7 @@ storage:
   dataRoot: data
 category: finance
 name: Zecky Rock it
-version: "0.3.12"
+version: "0.3.13"
 tagline: Your own Zcash node for Zecky Lock it and Zecky Pocket
 icon: https://raw.githubusercontent.com/zeckyapp/rock-it/main/status/icon.svg
 description: >-
@@ -29,6 +29,10 @@ description: >-
   server by Zingo Labs), with two small Rock it patches for speed on a
   Raspberry Pi.
 releaseNotes: >-
+  0.3.13: a smoother first start on a new Umbrel: the Tailscale folder is
+  ready from the first second.
+
+
   0.3.12: a clear note on the Connect card: use the home address only on your
   own Wi-Fi, and the encrypted Tailscale address anywhere else.
 
