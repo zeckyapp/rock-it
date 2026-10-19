@@ -11,7 +11,6 @@ import {
   fetchStatus,
   parseStatus,
   RockError,
-  shortZec,
   summarize,
   tiles,
 } from '../src/lib/status';
@@ -118,17 +117,11 @@ describe('status', () => {
 });
 
 describe('tiles', () => {
-  it('writes ZEC short, as on the Umbrel', () => {
-    expect(shortZec(496315466000000)).toBe('4.96M');
-    expect(shortZec(47446097000000)).toBe('474K');
-    expect(shortZec(81250000000)).toBe('813');
-  });
-
   it('shows the four tiles with the Umbrel words', () => {
     expect(tiles(parseStatus(ready)!)).toEqual([
-      { title: 'Shielded', text: '4.96M', subtext: 'ZEC · 33%' },
+      { title: 'Shielded', text: '33%', subtext: 'of ZEC' },
       { title: 'Network', text: '8', subtext: 'peers' },
-      { title: 'Wallets', text: 'Open', subtext: 'for Zecky' },
+      { title: 'Wallets', text: 'Ready', subtext: '' },
       { title: 'Mode', text: 'Private', subtext: 'node' },
     ]);
   });
@@ -144,7 +137,9 @@ describe('tiles', () => {
         version: '0.3.9',
       })!,
     );
-    expect(t.map(x => x.text)).toEqual(['–', '–', 'Closed', 'Supporter']);
+    // Never 'Supporter', even if an older Rock reports inbound.
+    expect(t.map(x => x.text)).toEqual(['–', '–', 'Not ready', 'Private']);
+    expect(t[0].subtext).toBe('of ZEC');
   });
 });
 

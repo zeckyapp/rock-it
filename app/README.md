@@ -62,4 +62,4 @@ npx tsc --noEmit && npx eslint App.tsx src __tests__ && npx jest
 | `src/lib/https.ts` | Requests to the Rock over pinned HTTPS |
 | `native/rockit-tls/` | Native code: HTTPS that checks the Rock's fingerprint, and the QR scanner |
 | `src/screens/` | Setup and status screens |
-| `assets/icon/` | App icon (`make-icon.py` draws the copper Z, run from `app/`) |
+| `assets/icon/` | App icon (`make-icon.py` draws the Z in a ring with peers, run from `app/`) |

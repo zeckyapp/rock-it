@@ -172,14 +172,6 @@ export function summarize(s: RockStatus): Summary {
   }
 }
 
-/** 4963154.66 ZEC -> '4.96M', 474460.97 -> '474K', 812.5 -> '813' (as on the Umbrel). */
-export function shortZec(zat: number): string {
-  const zec = zat / 1e8;
-  if (zec >= 1e6) return `${(zec / 1e6).toFixed(2)}M`;
-  if (zec >= 1e3) return `${(zec / 1e3).toFixed(0)}K`;
-  return zec.toFixed(0);
-}
-
 export interface Tile {
   title: string;
   text: string;
@@ -192,13 +184,11 @@ export function tiles(s: RockStatus): Tile[] {
   const p = n.reachable ? n.pools : null;
   const peers = n.reachable ? n.peers : null;
   return [
-    p
-      ? {
-          title: 'Shielded',
-          text: shortZec(p.shieldedZat),
-          subtext: `ZEC · ${((p.shieldedZat * 100) / p.totalZat).toFixed(0)}%`,
-        }
-      : { title: 'Shielded', text: '–', subtext: 'ZEC' },
+    {
+      title: 'Shielded',
+      text: p ? `${((p.shieldedZat * 100) / p.totalZat).toFixed(0)}%` : '–',
+      subtext: 'of ZEC',
+    },
     {
       title: 'Network',
       text: peers == null ? '–' : fmt(peers),
@@ -206,13 +196,10 @@ export function tiles(s: RockStatus): Tile[] {
     },
     {
       title: 'Wallets',
-      text: s.walletServer.open ? 'Open' : 'Closed',
-      subtext: 'for Zecky',
+      text: s.walletServer.open ? 'Ready' : 'Not ready',
+      subtext: '',
     },
-    {
-      title: 'Mode',
-      text: s.privacy == null ? '–' : s.privacy.inbound ? 'Supporter' : 'Private',
-      subtext: 'node',
-    },
+    // Rock it is Private only: it never announces the home IP as a node.
+    { title: 'Mode', text: 'Private', subtext: 'node' },
   ];
 }

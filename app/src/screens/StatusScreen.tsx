@@ -179,7 +179,7 @@ export function StatusScreen({ rock, onEdit }: Props) {
               key={t.title}
               style={styles.tile}
               accessible
-              accessibilityLabel={`${t.title}: ${t.text} ${t.subtext}`}
+              accessibilityLabel={`${t.title}: ${t.text} ${t.subtext}`.trim()}
             >
               <Text style={styles.tileTitle}>{t.title}</Text>
               <Text
@@ -190,7 +190,8 @@ export function StatusScreen({ rock, onEdit }: Props) {
                 {t.text}
               </Text>
               <Text style={styles.tileSub} numberOfLines={1}>
-                {t.subtext}
+                {/* An empty line keeps all four tiles the same height. */}
+                {t.subtext || '\u00a0'}
               </Text>
             </View>
           ))}
@@ -241,6 +242,12 @@ export function StatusScreen({ rock, onEdit }: Props) {
             </Pressable>
           );
         })}
+        {rock.home ? (
+          <Text style={styles.help}>
+            Only on your own Wi-Fi, never a guest or public network. Away, or
+            on any other network, use the Tailscale address: it is encrypted.
+          </Text>
+        ) : null}
       </View>
 
       {/* Always shown, also when the Rock can't be reached. */}

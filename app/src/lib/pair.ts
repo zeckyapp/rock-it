@@ -107,7 +107,7 @@ export async function pairWith(
       );
     case 'tries':
       throw new RockError(
-        'Too many wrong tries. Tap New code on your Umbrel and try again.',
+        'Too many wrong tries. Your Umbrel shows a new code by itself: use that one.',
         'code',
       );
     case 'full':
