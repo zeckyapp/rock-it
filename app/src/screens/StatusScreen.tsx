@@ -177,8 +177,8 @@ export function StatusScreen({ rock, onEdit }: Props) {
       {error?.kind === 'unreachable' ? (
         <Text style={styles.help}>
           {rock.away
-            ? 'At home, check that the phone is on your Wi-Fi. Away, check that Tailscale is on, on the phone and on the Umbrel.'
-            : 'Check that the phone is on the same Wi-Fi as your Umbrel. To check from anywhere, add its Tailscale address under Edit.'}
+            ? 'At home, check that the phone is on your Wi-Fi and that Rock it may use your local network (Settings › Rock it › Local Network). Away, check that Tailscale is on, on the phone and on the Umbrel.'
+            : 'Check that the phone is on the same Wi-Fi as your Umbrel, and that Rock it may use your local network (Settings › Rock it › Local Network). To check from anywhere, add its Tailscale address under Edit.'}
         </Text>
       ) : null}
 

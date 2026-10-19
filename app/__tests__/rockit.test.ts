@@ -5,6 +5,7 @@ import {
   shortLabel,
 } from '../src/lib/address';
 import { checkRock } from '../src/lib/check';
+import { noAnswer } from '../src/lib/https';
 import { parseRock } from '../src/lib/rock';
 import { cleanCode, pairWith, parsePairLink } from '../src/lib/pair';
 import {
@@ -114,6 +115,17 @@ describe('status', () => {
       headline: '42.0%',
       detail: 'Syncing · block 1,480,000 of 3,520,104',
     });
+  });
+});
+
+describe('no answer', () => {
+  it('points at the local network setting at home, at Tailscale away', () => {
+    expect(noAnswer({ host: '192.168.1.20', port: 8139 })).toContain(
+      'Settings › Rock it › Local Network',
+    );
+    const away = noAnswer({ host: 'rockit.tail1234.ts.net', port: 8139 });
+    expect(away).toContain('Tailscale is on');
+    expect(away).not.toContain('Local Network');
   });
 });
 
