@@ -99,3 +99,5 @@ everyone and dropped here.
 
 Zaino is Apache-2.0 (Copyright ZingoLabs). Zakura is MIT or Apache-2.0. The
 patches are changes to Zaino and are offered under Apache-2.0 too.
+Everything else in this repository (the Umbrel app, the status page and the
+Rock it iPhone app) is MIT, see `LICENSE`.
