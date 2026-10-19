@@ -18,7 +18,34 @@ export interface RockStatus {
   disk: { free: number; total: number } | null;
   /** Whether other Zcash nodes can connect in (null on older Rocks). */
   privacy: { inbound: boolean } | null;
+  /**
+   * The one encrypted address for every wallet, when Connect (Tailscale) is
+   * on (Rock it 0.3.10 and newer). Null when it is off.
+   */
+  otherWallets: { name: string; address: string } | null;
   version: string;
+}
+
+/** rockit.tail1234.ts.net, nothing else. */
+const TS_NAME = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.ts\.net$/;
+
+/**
+ * Accepts only https://<that same name>.ts.net:<port>, so an odd reply can
+ * never put some other address on the screen for the owner to copy.
+ */
+export function parseOtherWallets(
+  raw: unknown,
+): { name: string; address: string } | null {
+  if (raw == null || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const name = typeof o.name === 'string' ? o.name.toLowerCase() : '';
+  const address = typeof o.address === 'string' ? o.address.toLowerCase() : '';
+  if (!TS_NAME.test(name) || name.length > 253) return null;
+  const m = /^https:\/\/([^/:]+):(\d{1,5})$/.exec(address);
+  if (m == null || m[1] !== name) return null;
+  const port = Number(m[2]);
+  if (port < 1 || port > 65535) return null;
+  return { name, address };
 }
 
 const PHASES = ['starting', 'syncing', 'opening', 'ready'] as const;
@@ -63,6 +90,7 @@ export function parseStatus(raw: unknown): RockStatus | null {
       pv != null && typeof pv.inbound === 'boolean'
         ? { inbound: pv.inbound }
         : null,
+    otherWallets: parseOtherWallets(r.otherWallets),
     version: typeof r.version === 'string' ? r.version : '',
   };
 }
