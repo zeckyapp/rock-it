@@ -1,5 +1,5 @@
 import { pinnedRequest } from 'rockit-tls';
-import { Address, addressLabel } from './address';
+import { Address, addressLabel, isTailscale } from './address';
 import { RockError } from './status';
 
 export interface RockReply {
@@ -8,6 +8,19 @@ export interface RockReply {
   json: Record<string, unknown> | null;
   /** The fingerprint of the certificate the Rock showed. */
   pin: string;
+}
+
+/**
+ * What to check when the Rock does not answer. At home iOS also asks, once,
+ * whether Rock it may use the local network; "Don't Allow" looks exactly like
+ * a Rock that is off.
+ */
+export function noAnswer(address: Address): string {
+  const where = addressLabel(address);
+  if (isTailscale(address.host)) {
+    return `No answer from ${where}. Check that Tailscale is on, on this phone, and that Connect is on on your Rock it page.`;
+  }
+  return `No answer from ${where}. Check that this phone is on the same Wi-Fi as your Umbrel, and that Rock it may use your local network (Settings › Rock it › Local Network).`;
 }
 
 /**
@@ -56,10 +69,7 @@ export async function rockRequest(
         'unreachable',
       );
     }
-    throw new RockError(
-      `No answer from ${addressLabel(address)}.`,
-      'unreachable',
-    );
+    throw new RockError(noAnswer(address), 'unreachable');
   }
   let json: Record<string, unknown> | null = null;
   try {
