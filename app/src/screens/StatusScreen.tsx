@@ -96,16 +96,26 @@ export function StatusScreen({ rock, onEdit }: Props) {
   const summary = status ? summarize(status) : null;
   const waiting = status == null && error == null;
 
-  function copy(address: Address) {
-    const text = `${address.host}:${WALLET_PORT}`;
+  function copy(text: string) {
     Clipboard.setString(text);
     setCopied(text);
     setTimeout(() => setCopied(c => (c === text ? null : c)), 2000);
   }
 
+  // The wallet port as the Rock reports it; 8137 until it has answered.
+  const walletPort = status?.walletServer.port ?? WALLET_PORT;
+  const anywhere = status?.otherWallets ?? null;
   const walletAddresses: { label: string; address: Address }[] = [];
-  if (rock.home) walletAddresses.push({ label: 'At home', address: rock.home });
-  if (rock.away) walletAddresses.push({ label: 'Away', address: rock.away });
+  if (rock.home) {
+    walletAddresses.push({
+      label: anywhere ? 'At home (Wi-Fi only)' : 'At home',
+      address: rock.home,
+    });
+  }
+  // With Connect on, the encrypted address replaces the plain Tailscale one.
+  if (rock.away && !anywhere) {
+    walletAddresses.push({ label: 'Away', address: rock.away });
+  }
 
   return (
     <ScrollView
@@ -221,18 +231,37 @@ export function StatusScreen({ rock, onEdit }: Props) {
       ) : null}
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>For Lock it and Pocket</Text>
+        <Text style={styles.sectionTitle}>For your wallets</Text>
         <Text style={styles.help}>
           In the wallet: Settings, Network, Add a server. Tap to copy.
         </Text>
+        {anywhere ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityHint="Copies the address"
+            onPress={() => copy(anywhere.address)}
+            style={({ pressed }) => [styles.copyWide, pressed && styles.dim]}
+          >
+            <Text style={styles.copyLabel}>Anywhere · encrypted</Text>
+            <Text style={styles.copyValue}>
+              {copied === anywhere.address ? 'Copied' : anywhere.address}
+            </Text>
+          </Pressable>
+        ) : null}
+        {anywhere ? (
+          <Text style={styles.help}>
+            Lock it, Pocket, Vizor: paste as is. Zodl: leave out https://.
+            Keep Tailscale on on your phone, also at home.
+          </Text>
+        ) : null}
         {walletAddresses.map(({ label, address }) => {
-          const text = `${address.host}:${WALLET_PORT}`;
+          const text = `${address.host}:${walletPort}`;
           return (
             <Pressable
               key={label}
               accessibilityRole="button"
               accessibilityHint="Copies the address"
-              onPress={() => copy(address)}
+              onPress={() => copy(text)}
               style={({ pressed }) => [styles.copy, pressed && styles.dim]}
             >
               <Text style={styles.copyLabel}>{label}</Text>
@@ -246,6 +275,12 @@ export function StatusScreen({ rock, onEdit }: Props) {
           <Text style={styles.help}>
             Only on your own Wi-Fi, never a guest or public network. Away, or
             on any other network, use the Tailscale address: it is encrypted.
+          </Text>
+        ) : null}
+        {status && !anywhere ? (
+          <Text style={styles.help}>
+            Turn on Connect on your Rock it page for one encrypted address that
+            works everywhere, for every wallet.
           </Text>
         ) : null}
       </View>
@@ -378,6 +413,14 @@ const useStyles = makeStyles(colors => ({
     paddingHorizontal: space.md,
     minHeight: 52,
     gap: space.md,
+  },
+  copyWide: {
+    borderWidth: 1,
+    borderColor: colors.gold,
+    borderRadius: 12,
+    paddingHorizontal: space.md,
+    paddingVertical: 12,
+    gap: 4,
   },
   copyLabel: { fontFamily: fonts.sans, fontSize: 15, color: colors.textMuted },
   copyValue: {

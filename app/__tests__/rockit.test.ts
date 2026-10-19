@@ -9,6 +9,7 @@ import { parseRock } from '../src/lib/rock';
 import { cleanCode, pairWith, parsePairLink } from '../src/lib/pair';
 import {
   fetchStatus,
+  parseOtherWallets,
   parseStatus,
   RockError,
   summarize,
@@ -113,6 +114,41 @@ describe('status', () => {
       headline: '42.0%',
       detail: 'Syncing · block 1,480,000 of 3,520,104',
     });
+  });
+});
+
+describe('the one address for every wallet', () => {
+  const ts = {
+    name: 'rockit.tail1234.ts.net',
+    address: 'https://rockit.tail1234.ts.net:9067',
+  };
+
+  it('shows it only when Connect is on', () => {
+    expect(parseStatus(ready)!.otherWallets).toBeNull();
+    expect(parseStatus({ ...ready, otherWallets: ts })!.otherWallets).toEqual(ts);
+  });
+
+  it('takes the wallet port from the Rock', () => {
+    const s = parseStatus({ ...ready, walletServer: { open: true, port: 18137 } })!;
+    expect(s.walletServer.port).toBe(18137);
+  });
+
+  it('accepts nothing but https on the same ts.net name', () => {
+    const bad = [
+      { ...ts, address: 'http://rockit.tail1234.ts.net:9067' },
+      { ...ts, address: 'https://evil.example.com:9067' },
+      { ...ts, address: 'https://rockit.tail1234.ts.net.evil.com:9067' },
+      { ...ts, address: 'https://other.tail1234.ts.net:9067' },
+      { ...ts, address: 'https://rockit.tail1234.ts.net:9067/path' },
+      { ...ts, address: 'https://rockit.tail1234.ts.net' },
+      { ...ts, address: 'https://rockit.tail1234.ts.net:99999' },
+      { name: 'example.com', address: 'https://example.com:9067' },
+      { name: 42, address: ts.address },
+      'https://rockit.tail1234.ts.net:9067',
+      null,
+    ];
+    for (const b of bad) expect(parseOtherWallets(b)).toBeNull();
+    expect(parseOtherWallets(ts)).toEqual(ts);
   });
 });
 
