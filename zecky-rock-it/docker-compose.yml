@@ -53,7 +53,9 @@ services:
       rockit: {}
 
   # The Zcash node.
-  # Zakura publishes only "latest"; the digest pins the exact 1.6.0 build.
+  # The tag says the version; the digest pins the exact multi-platform build.
+  # Zakura releases stop themselves at a set height, so this must be updated
+  # before each one expires (1.7.0: about 4 December 2026).
   # Runs as root at first: its entrypoint gives the data folder to its own
   # user (10001) and then drops to that user.
   # Runs once at every start, before the node and Zaino, then stops. Docker
@@ -74,7 +76,7 @@ services:
       - ${APP_DATA_DIR}/data/zaino:/zaino
 
   zakura:
-    image: docker.io/zakuracore/zakura:latest@sha256:bf53c178e9549217fce7cfaa21efc85c478129ba6dc5307d55640514affeb0ac
+    image: docker.io/zakuracore/zakura:1.7.0@sha256:cf3b2d09a0ab3cd3a5e17cbbb676b7abe719607391402ea07d6402e9af897b6b
     restart: on-failure
     depends_on:
       prepare:
