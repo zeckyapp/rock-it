@@ -93,3 +93,16 @@ these measurements) and zingolabs/zaino#1673 (tree state by height).
   network, which the host (and so the login proxy and widget) still reaches.
 - Apps on the host network (Tailscale) count as the host and are not shut
   out. They already have full access to the Umbrel.
+
+## Zakura releases expire
+
+- Every Zakura release stops itself at a set block height, with warnings
+  about three days before. 1.6.0 stopped after block 3,536,467 (around
+  1 November 2026); 1.7.0 runs to block 3,640,098 (around 4 December 2026)
+  and follows NU7 at block 3,543,405. Rock it must ship each new Zakura well
+  before the old one expires.
+- 1.7.0 moves the state database from format v29 to v30 but reuses the
+  existing data in place: no new sync.
+- Zaino 0.10.2 does not know NU7 yet. It still starts (it skips upgrades it
+  does not recognise), but wallets through Rock it must be retested after
+  NU7 activates.

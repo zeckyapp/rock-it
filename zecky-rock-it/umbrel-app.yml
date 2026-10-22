@@ -4,7 +4,7 @@ storage:
   dataRoot: data
 category: finance
 name: Zecky Rock it
-version: "0.3.13"
+version: "0.3.14"
 tagline: Your own Zcash node for Zecky Lock it and Zecky Pocket
 icon: https://raw.githubusercontent.com/zeckyapp/rock-it/main/status/icon.svg
 description: >-
@@ -29,6 +29,11 @@ description: >-
   server by Zingo Labs), with two small Rock it patches for speed on a
   Raspberry Pi.
 releaseNotes: >-
+  0.3.14: Zakura 1.7.0, ready for the NU7 network upgrade (around 5 November).
+  Update before 29 October: older versions stop around 1 November. Your node
+  keeps its data, so there is no new sync.
+
+
   0.3.13: a smoother first start on a new Umbrel: the Tailscale folder is
   ready from the first second.
 
