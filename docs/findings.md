@@ -106,3 +106,25 @@ these measurements) and zingolabs/zaino#1673 (tree state by height).
 - Zaino 0.10.2 does not know NU7 yet. It still starts (it skips upgrades it
   does not recognise), but wallets through Rock it must be retested after
   NU7 activates.
+
+## What the node tells about the network (checked 25 October 2026)
+
+- Zakura does not report its end-of-support (stop) height over RPC. It only
+  starts a background check at launch and logs a warning near the end. Rock
+  it has to carry the stop height for each pinned Zakura release itself.
+- `getnetworksolps` works and gives the network hashrate in sol/s (about
+  30 GS/s at the time).
+- `getpeerinfo` gives `addr`, `inbound`, `pingtime`, `subver` and `version`
+  per peer. The addresses must never leave the Rock; the rest can be shown as
+  counts.
+- In Private mode the node had about 150 outgoing peers and none incoming.
+  Private means nobody can connect in and the node is not announced; the
+  peers it connects out to do see the home IP.
+- The protocol version does not tell whether a peer is ready for the next
+  upgrade: Zakura 1.5.1 and 1.6.0 report 170190 like 1.7.0, but 1.6.0 stops
+  before NU7. Readiness has to come from software and version (for NU7:
+  Zebra 7 or newer, Zakura 1.7 or newer).
+- Seen at the time: Zakura 1.x 60, Zebra 6.x 49, Zebra 7.x 40, other 1.
+- Port 8233 (the Zcash peer port) is the web port of Linkwarden, an official
+  Umbrel app. Publishing 8233 on the Umbrel would stop Rock it from starting
+  next to it, so a Supporter mode needs another public port.
