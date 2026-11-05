@@ -103,9 +103,14 @@ these measurements) and zingolabs/zaino#1673 (tree state by height).
   before the old one expires.
 - 1.7.0 moves the state database from format v29 to v30 but reuses the
   existing data in place: no new sync.
-- Zaino 0.10.2 does not know NU7 yet. It still starts (it skips upgrades it
-  does not recognise), but wallets through Rock it must be retested after
-  NU7 activates.
+- Zaino 0.10.2 does not know NU7. It does not skip it: its zebra-chain 12
+  dependency has a placeholder for NU7's consensus branch id, so it cannot
+  parse the first NU7 block (real id 0x77190ad9) and stops at the last block
+  before NU7 (3,543,404), retrying forever with "invalid consensus branch id"
+  (zingolabs/zaino#1731, reported for 0.10.1 and 0.10.2). Zakura keeps going;
+  wallets through Rock it see no new blocks until Zaino is updated. NU7
+  support is in zingolabs/zaino#1655 (not merged or released on 5 November
+  2026). Funds are not at risk.
 
 ## What the node tells about the network (checked 25 October 2026)
 
