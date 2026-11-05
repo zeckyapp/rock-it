@@ -95,7 +95,9 @@ services:
 
   # Light-wallet server: Zecky Lock it and Pocket connect here.
   zaino:
-    image: ghcr.io/zeckyapp/zaino-rockit:0.10.2-rockit2@sha256:910eef16363add186db34c11ccd6d27f880bf15a041835431a28e0dae8d55747
+    # NU7: built from ZingoLabs' NU7 fix (zingolabs/zaino#1655) with the Rock it
+    # patches; 0.10.2 stops at the last block before NU7.
+    image: ghcr.io/zeckyapp/zaino-rockit:0.10.2-nu7-rockit1@sha256:25ebdfc899a29bd5374622c79ac9a5cb09fd8e7892cf86de056dc1741aba6ae8
     restart: on-failure
     depends_on:
       prepare:
