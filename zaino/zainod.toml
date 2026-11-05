@@ -1,4 +1,5 @@
-# Zaino settings for Rock it (Zaino 0.10.2 with the Rock it patches).
+# Zaino settings for Rock it (Zaino with NU7 support, zingolabs/zaino#1655,
+# with the Rock it patches).
 
 backend = "rpc"
 network = "Mainnet"
