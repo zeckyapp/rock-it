@@ -2,24 +2,32 @@
 #
 # Builds for the platform it runs on (arm64 on a Raspberry Pi, amd64 on a PC).
 # Upstream: https://github.com/zingolabs/zaino (Apache-2.0, ZingoLabs).
-# The build checks that the tag still points at the commit the patches were
-# made and tested against, so a moved tag fails the build instead of shipping
-# untested code.
+# The build fetches one exact commit and checks it, so it always builds the
+# code the patches were made and tested against.
 
-ARG ZAINO_TAG=zainod-0.10.2
-ARG ZAINO_COMMIT=5ced0ae83df1f873274332dc2e6bc25acb856a62
+# NU7: Zaino 0.10.2 stops at the last block before NU7 (zingolabs/zaino#1731).
+# Until ZingoLabs releases NU7 support, Rock it builds the exact commit of
+# their NU7 pull request (zingolabs/zaino#1655, branch feat/nu7), fetched by
+# commit so a moved branch cannot change what is built. Move to the official
+# release as soon as it is out.
+# The branch is for reference only; the commit decides what is built.
+ARG ZAINO_REF=feat/nu7
+ARG ZAINO_COMMIT=aaf8122a703704e05147d984f08ff82c789860ad
 
 # The digests pin the exact base images; the tags say what they are. To
 # update: look up each tag's current digest on Docker Hub and replace both.
 FROM docker.io/library/rust:1.98.0-bookworm@sha256:82150a52ec202c1b14d7817e14516c392bb7f5cfebd88f1ed531cb37ebd39922 AS builder
-ARG ZAINO_TAG
+ARG ZAINO_REF
 ARG ZAINO_COMMIT
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       pkg-config clang cmake make protobuf-compiler git ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
-RUN git clone --depth 1 --branch "${ZAINO_TAG}" https://github.com/zingolabs/zaino.git . \
+RUN git init -q . \
+ && git remote add origin https://github.com/zingolabs/zaino.git \
+ && git fetch -q --depth 1 origin "${ZAINO_COMMIT}" \
+ && git checkout -q FETCH_HEAD \
  && test "$(git rev-parse HEAD)" = "${ZAINO_COMMIT}"
 COPY patches/ /patches/
 RUN git apply /patches/*.patch
