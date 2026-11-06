@@ -9,130 +9,207 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <script src="qr.js"></script>
 <style>
-:root{--ink:#14161C;--card:#1B1E25;--gold:#D4A657;--gold-hi:#E6C07E;--paper:#ECE8DF;--muted:#9A9DA6;--faint:#8A8D96;--line:#262932;--ok:#8FBF8A}
+/* Same family look as Zecky Lock it: ink, warm gold, a serif for the big
+   words, a mark on a guilloché rosette, a quiet top and the rest folded away.
+   No web fonts and nothing loaded from elsewhere: the page stays local. */
+:root{--ink:#14161C;--card:#1A1D24;--gold:#D4A657;--gold-hi:#E6C07E;--paper:#ECE8DF;--muted:#9A9DA6;--faint:#80838C;--line:#262932;--ok:#8FBF8A}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--ink);color:var(--paper)}
-body{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5}
-.serif{font-family:Newsreader,Georgia,"Times New Roman",serif}
-.page{max-width:720px;margin:0 auto;padding:32px 16px 48px;display:flex;flex-direction:column;gap:28px}
-header{display:flex;align-items:center;gap:12px;font-size:22px}
-header .tag{margin-left:auto;font-family:Inter,system-ui,sans-serif;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
-.hero{display:flex;flex-direction:column;gap:12px;padding-top:12px}
-.hero h1{margin:0;font-weight:300;font-size:clamp(40px,9vw,64px);line-height:1;letter-spacing:-.02em}
+body{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;line-height:1.55}
+.serif{font-family:Newsreader,"Iowan Old Style",Georgia,"Times New Roman",serif}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.page{max-width:560px;margin:0 auto;padding:28px 16px 56px;display:flex;flex-direction:column;gap:22px}
+header{display:flex;align-items:center;gap:10px;font-size:20px}
+header small{margin-left:auto;font-family:Inter,system-ui,sans-serif;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint)}
+
+.rock{position:relative;width:min(300px,78vw);aspect-ratio:1;margin:8px auto 0}
+.rock svg{position:absolute;inset:0;width:100%;height:100%}
+.rosette{opacity:.55}
+.glow{position:absolute;inset:18%;border-radius:50%;background:radial-gradient(circle,rgba(212,166,87,.18),transparent 70%);filter:blur(6px)}
+#arc{transition:stroke-dashoffset .8s ease}
+@media (prefers-reduced-motion:no-preference){.rosette{animation:turn 240s linear infinite;transform-origin:50% 50%}@keyframes turn{to{transform:rotate(360deg)}}}
+
+.hero{text-align:center;display:flex;flex-direction:column;gap:6px;margin-top:-6px}
+.hero h1{margin:0;font-weight:300;font-size:clamp(42px,11vw,56px);line-height:1.05;letter-spacing:-.02em}
 .hero h1 span{color:var(--gold)}
-.hero p{margin:0;color:var(--muted);font-size:16px;max-width:34rem}
-.bar{height:6px;border-radius:99px;background:var(--line);overflow:hidden}
-.bar i{display:block;height:100%;width:0;background:var(--gold);transition:width .6s ease}
-.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px}
-.card h2{margin:0 0 12px;font-size:13px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
-.rows{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;margin:0}
-.rows dt{color:var(--faint)}
-.rows dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
-.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--faint);margin-right:8px;vertical-align:middle}
+.hero p{margin:0 auto;color:var(--muted);max-width:30rem}
+.facts{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--faint);min-height:20px}
+.facts b{color:var(--paper);font-weight:500}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--faint);margin-right:7px;vertical-align:1px}
 .dot.on{background:var(--ok)}
 .dot.wait{background:var(--gold)}
-.addr{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0 12px}
-.addr code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:20px;color:var(--gold-hi);background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px 12px;word-break:break-all}
-button{height:40px;padding:0 18px;border:0;border-radius:999px;background:var(--gold);color:var(--ink);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
-button:hover{background:var(--gold-hi)}
-button:focus-visible{outline:2px solid var(--gold-hi);outline-offset:3px}
-ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
-.note{margin:12px 0 0;font-size:14px;color:var(--faint)}
-.note strong{color:var(--paper);font-weight:500}
-.for{display:inline-block;margin:0 0 14px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);font-size:12px;letter-spacing:.06em;color:var(--gold)}
-.pair{display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:center}
-.qr{background:var(--paper);border-radius:12px;padding:12px;width:188px;height:188px;display:flex;align-items:center;justify-content:center}
-.qr svg{width:164px;height:164px;display:block}
-.code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:26px;letter-spacing:.12em;color:var(--gold-hi)}
-.quiet{background:transparent;color:var(--gold);border:1px solid var(--line)}
-.quiet:hover{background:var(--line)}
-.devices{list-style:none;margin:16px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
-.devices li{display:flex;align-items:center;gap:12px;border-top:1px solid var(--line);padding-top:8px}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px}
+.card h2{margin:0 0 4px;font-family:Newsreader,"Iowan Old Style",Georgia,serif;font-weight:400;font-size:24px}
+.lede{margin:0 0 16px;color:var(--muted);font-size:15px}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.step{display:grid;grid-template-columns:32px 1fr;gap:12px;padding:14px 0;border-top:1px solid var(--line)}
+.step:first-child{border-top:0;padding-top:4px}
+.step>div:last-child{min-width:0}
+.num{width:28px;height:28px;border-radius:50%;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--muted)}
+.step.done .num{border-color:var(--ok);color:var(--ok)}
+.step.now .num{border-color:var(--gold);color:var(--gold)}
+.step h3{margin:3px 0 0;font-size:16px;font-weight:500}
+.step.done h3{color:var(--muted);font-weight:400}
+.step.later h3{color:var(--faint);font-weight:400}
+.step .body{margin-top:8px;color:var(--muted);font-size:14px;display:flex;flex-direction:column;gap:10px}
+.step.done .body,.step.later .body{display:none}
+.step .body p{margin:0}
+
+button,.btn{display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 22px;border:0;border-radius:99px;background:var(--gold);color:var(--ink);font:inherit;font-size:15px;font-weight:600;text-decoration:none;cursor:pointer;align-self:flex-start}
+button:hover,.btn:hover{background:var(--gold-hi)}
+button:focus-visible,.btn:focus-visible,summary:focus-visible{outline:2px solid var(--gold-hi);outline-offset:3px}
+button.quiet{height:36px;padding:0 16px;border:1px solid var(--line);background:transparent;color:var(--gold);font-size:13px;font-weight:500}
+button.quiet:hover{background:var(--line)}
+button:disabled{opacity:.5;cursor:default}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.addr{display:flex;align-items:center;gap:10px;background:var(--ink);border:1px solid var(--line);border-radius:14px;padding:8px 8px 8px 14px}
+.addr code{flex:1;min-width:0;overflow-wrap:anywhere;color:var(--gold-hi);font-size:15px}
+.apps{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px;margin:0}
+.apps dt{color:var(--paper)}
+.apps dd{margin:0;color:var(--muted);overflow-wrap:anywhere}
+.apps code{color:var(--gold-hi)}
+.pair{display:flex;gap:16px;align-items:center}
+.qr{background:var(--paper);border-radius:12px;padding:10px;width:140px;height:140px;display:flex;align-items:center;justify-content:center;flex:none}
+.qr svg{width:120px;height:120px;display:block}
+.code{font-size:26px;letter-spacing:.14em;color:var(--gold-hi);margin:4px 0 !important}
+.small{font-size:13px;color:var(--faint)}
+.calm{border-left:2px solid var(--gold);padding:2px 0 2px 12px;font-size:14px;color:var(--muted)}
+.calm strong{color:var(--paper);font-weight:500}
+@media (max-width:480px){.pair{flex-direction:column;align-items:flex-start}.apps{grid-template-columns:1fr;gap:0}.apps dd{margin-bottom:8px}}
+
+details{border-top:1px solid var(--line);padding-top:14px;margin-top:14px}
+details:first-child{border-top:0;padding-top:0;margin-top:0}
+summary{cursor:pointer;color:var(--gold);font-size:14px;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::after{content:" \203A"}
+details[open] summary::after{content:" \2304"}
+details>.inner{margin-top:14px;display:flex;flex-direction:column;gap:10px;font-size:14px;color:var(--muted)}
+details>.inner p{margin:0}
+.rows{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;margin:0;font-size:14px}
+.rows dt{color:var(--faint)}
+.rows dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;color:var(--paper)}
+.devices{list-style:none;margin:0;padding:0}
+.devices li{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);color:var(--paper)}
+.devices li:first-child{border-top:0;padding-top:0}
 .devices li span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.devices li small{color:var(--faint)}
-.devices button{height:32px;padding:0 14px;font-size:13px}
-@media (max-width:520px){.pair{grid-template-columns:1fr;justify-items:start}}
-.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-.warn{margin:12px 0 0;padding:12px 14px;border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:10px;font-size:14px;color:var(--muted)}
-.warn strong{color:var(--paper);font-weight:500}
+.devices small{color:var(--faint)}
+.sub{margin:6px 0 0;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
 a{color:var(--gold-hi)}
-.btn{display:inline-flex;align-items:center;height:40px;padding:0 18px;border-radius:999px;background:var(--gold);color:var(--ink);font-size:14px;font-weight:600;text-decoration:none}
-.btn:hover{background:var(--gold-hi)}
-.lead{margin:0 0 6px;font-size:20px;font-weight:400}
-.needs{list-style:none;padding:0;margin:12px 0 0;display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--muted)}
-.needs li::before{content:"\25CB  ";color:var(--gold)}
-.step1{margin:4px 0 0;padding:10px 14px;border-radius:10px;border:1px solid var(--gold);font-size:14px}
-.uses{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:14px 0 0;font-size:14px}
-.uses dt{color:var(--paper)}
-.uses dd{margin:0;color:var(--muted);overflow-wrap:anywhere}
-.uses code,.inline{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--gold-hi)}
-.sub{margin:22px 0 10px;font-size:13px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
-.qrs{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;align-items:start}
-.qrs .note{margin-top:8px}
-details{margin-top:20px;border-top:1px solid var(--line);padding-top:14px}
-summary{cursor:pointer;color:var(--gold);font-size:14px}
-details[open] summary{margin-bottom:12px}
-@media (max-width:520px){.uses{grid-template-columns:1fr;gap:2px 0}.uses dd{margin-bottom:8px}}
-footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:var(--faint);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px}
 </style>
 </head>
 <body>
 <div class="page">
   <header class="serif">
-    <svg width="20" height="26" viewBox="0 0 40 52" fill="none" aria-hidden="true"><path d="M9 7H31L9 39H31" stroke="#D4A657" stroke-width="4" stroke-linecap="square"/><path d="M14 48H26" stroke="#D4A657" stroke-width="3" stroke-linecap="round"/></svg>
-    Zecky Rock it
-    <span class="tag">Your own node</span>
+    <svg width="18" height="24" viewBox="0 0 40 52" fill="none" aria-hidden="true"><path d="M9 7H31L9 39H31" stroke="#D4A657" stroke-width="4" stroke-linecap="square"/><path d="M14 48H26" stroke="#D4A657" stroke-width="3" stroke-linecap="round"/></svg>
+    Zecky Rock it <small>Your own node</small>
   </header>
+
+  <!-- The Rock it mark on a guilloché rosette. The ring fills as the node syncs. -->
+  <div class="rock" aria-hidden="true">
+    <div class="glow"></div>
+    <svg class="rosette" viewBox="0 0 300 300" id="rosette"></svg>
+    <svg viewBox="0 0 300 300">
+      <circle cx="150" cy="150" r="92" fill="#16181F" stroke="#2A2D36" stroke-width="1"/>
+      <circle cx="150" cy="150" r="104" fill="none" stroke="#262932" stroke-width="6"/>
+      <circle id="arc" cx="150" cy="150" r="104" fill="none" stroke="#D4A657" stroke-width="6" stroke-linecap="round" stroke-dasharray="653.5" stroke-dashoffset="653.5" transform="rotate(-90 150 150)"/>
+      <g id="peerdots" fill="#D4A657" opacity=".4"><circle cx="150" cy="46" r="5"/><circle cx="240" cy="202" r="5"/><circle cx="60" cy="202" r="5"/></g>
+      <path d="M127 116H173L127 180H173" stroke="#D4A657" stroke-width="9" fill="none" stroke-linecap="square"/>
+      <path d="M137 196H163" stroke="#D4A657" stroke-width="6" stroke-linecap="round"/>
+    </svg>
+  </div>
 
   <section class="hero" aria-live="polite">
     <h1 class="serif" id="headline">Starting<span>.</span></h1>
-    <p id="sub">Checking the node…</p>
-    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="bar"><i></i></div>
+    <p id="sub">Checking your node…</p>
+  </section>
+  <div class="facts" id="facts"></div>
+
+  <!-- One calm path from install to connected wallets. Done steps fold away. -->
+  <section class="card" id="ow">
+    <h2 id="cardtitle">Getting started</h2>
+    <p class="lede" id="cardlede">Four calm steps. This page keeps track for you.</p>
+    <ol class="steps">
+      <li class="step now" id="s1">
+        <div class="num">1</div>
+        <div><h3>Let your node sync</h3>
+          <div class="body">
+            <p>Your Rock downloads and checks the whole Zcash chain itself. On a Raspberry Pi this takes a few days. You can close this page; it keeps going.</p>
+          </div></div>
+      </li>
+      <li class="step later" id="s2">
+        <div class="num">2</div>
+        <div><h3>Give your Rock a private address</h3>
+          <div class="body" id="ow-body"><p class="small">Loading…</p></div></div>
+      </li>
+      <li class="step later" id="s3">
+        <div class="num">3</div>
+        <div><h3>Add your Rock to your wallets</h3>
+          <div class="body" id="s3-body"></div></div>
+      </li>
+      <li class="step later" id="s4">
+        <div class="num">4</div>
+        <div><h3>Pair the Rock it app</h3>
+          <div class="body" id="pair-on"></div></div>
+      </li>
+    </ol>
   </section>
 
   <section class="card">
-    <h2>Status</h2>
-    <dl class="rows">
-      <dt>Zcash node</dt><dd id="node">–</dd>
-      <dt>Block</dt><dd id="height">–</dd>
-      <dt>Peers</dt><dd id="peers">–</dd>
-      <dt>Wallet server</dt><dd id="wallets">–</dd>
-      <dt>Free disk space</dt><dd id="disk">–</dd>
-      <dt>Privacy</dt><dd id="privacy">–</dd>
-    </dl>
+    <details id="det">
+      <summary>Details</summary>
+      <div class="inner">
+        <dl class="rows">
+          <dt>Zcash node</dt><dd id="node">–</dd>
+          <dt>Block</dt><dd id="height">–</dd>
+          <dt>Peers</dt><dd id="peers">–</dd>
+          <dt>Wallet server</dt><dd id="wallets">–</dd>
+          <dt>Free disk space</dt><dd id="disk">–</dd>
+          <dt>Privacy</dt><dd id="privacy">–</dd>
+        </dl>
+      </div>
+    </details>
+    <details id="phones">
+      <summary>Your iPhones</summary>
+      <div class="inner">
+        <ul class="devices" id="devices"></ul>
+        <p class="small">Each iPhone has its own key. Remove one and it can no longer read your Rock.</p>
+      </div>
+    </details>
+    <details id="more" hidden>
+      <summary>Wallet QR code and turning off</summary>
+      <div class="inner" id="ow-foot"></div>
+    </details>
+    <details id="local">
+      <summary>Home Wi-Fi only, without Tailscale</summary>
+      <div class="inner">
+        <p>Zecky Lock it and Pocket can also use this address, only on your home Wi-Fi:</p>
+        <div class="addr"><code id="address">–</code><button type="button" class="quiet" id="copy">Copy</button></div>
+        <p>In the wallet: Settings, Network, Add a server, paste it and tap <em>Check, save and use</em>.</p>
+        <p class="calm"><strong>Only on your own Wi-Fi,</strong> never a guest or public network. It is not encrypted on your home network, and not reachable from the internet. Away from home, use the private address.</p>
+        <p class="calm" id="hostnote" hidden><strong>Use the number, not the name.</strong> Zecky needs your Umbrel's IP address, such as 192.168.1.20. Open this page through that address, or find it in your router or in Umbrel's settings.</p>
+        <p id="localpair" hidden>The Rock it app can pair at home too: type the pairing code in the app with the address <strong class="homehost">your-umbrel-ip</strong>.</p>
+        <div id="pair-off"></div>
+      </div>
+    </details>
   </section>
 
-  <section class="card" id="ow">
-    <h2>Connect</h2>
-    <div id="ow-body"><p style="margin:0" class="note">Loading…</p></div>
-    <div id="pair-on"></div>
-    <div id="ow-foot"></div>
-    <details id="local">
-      <summary>Without Tailscale (home Wi-Fi only)</summary>
-      <p style="margin:0">Zecky Lock it and Pocket can also use this address, only on your home Wi-Fi:</p>
-      <div class="addr"><code id="address">–</code><button type="button" id="copy">Copy</button></div>
-      <p class="note" style="margin-top:0">In the wallet: Settings, Network, Add a server, then paste it and tap <em>Check, save and use</em>. Not encrypted on your home network, and not reachable from the internet.</p>
-      <p class="note" style="margin-top:0"><strong>Only on your own Wi-Fi,</strong> never a guest or public network. Away, or on any other network, use the Tailscale address above: it is encrypted.</p>
-      <p class="note" id="hostnote" hidden><strong>Use the number, not the name.</strong> Zecky needs your Umbrel's IP address, such as 192.168.1.20. Open this page through that address, or find it in your router or in Umbrel's settings.</p>
-      <p class="note" id="localpair" hidden>The Rock it app can pair at home too: type the code above in the app with the address <strong class="homehost">your-umbrel-ip</strong>.</p>
-      <div id="pair-off"></div>
-    </details>
-    <div id="pairbox">
-      <p class="sub">Rock it app</p>
-      <div class="pair">
-        <div class="qr" id="qr" aria-label="Pairing code as a QR code" role="img"></div>
-        <div>
-          <p style="margin:0">Point your iPhone's Camera at this QR code and tap the link. Or type this code in the Rock it app, with the address <strong class="hostonly">your-umbrel-ip</strong>:</p>
-          <p class="code" id="code" style="margin:8px 0">––––-––––</p>
-          <p class="note" style="margin:0 0 12px" id="expires">&nbsp;</p>
-          <button type="button" class="quiet" id="newcode">New code</button>
-        </div>
+  <!-- The Rock it app's pairing block. Placed in step 4 when the private
+       address is on, and under home Wi-Fi when it is not. -->
+  <div id="pairbox" hidden>
+    <div class="pair">
+      <div class="qr" id="qr" aria-label="Pairing code as a QR code" role="img"></div>
+      <div>
+        <p>Point your iPhone's Camera at this QR code and tap the link. Or type this code in the Rock it app, with the address <strong class="hostonly">your-umbrel-ip</strong>:</p>
+        <p class="code mono" id="code">––––-––––</p>
+        <p class="small" id="expires">&nbsp;</p>
       </div>
-      <p class="note">The code works once, for ten minutes. Each iPhone gets its own key; remove one here and it can no longer read your Rock. The QR code carries your Rock's fingerprint, so the app trusts nothing else.</p>
-      <p class="note" id="notls" hidden><strong>The encrypted connection is not ready.</strong> Restart Zecky Rock it on your Umbrel; the iPhone app cannot pair until it is.</p>
-      <ul class="devices" id="devices"></ul>
     </div>
-  </section>
+    <div class="actions"><button type="button" class="quiet" id="newcode">New code</button></div>
+    <p class="small">The code works once, for ten minutes. The QR code carries your Rock's fingerprint, so the app trusts nothing else.</p>
+    <p class="calm" id="notls" hidden><strong>The encrypted connection is not ready.</strong> Restart Zecky Rock it on your Umbrel; the app cannot pair until it is.</p>
+  </div>
 
   <footer>
     <span>Zakura node · Zaino wallet server</span>
@@ -148,9 +225,18 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
   var host=location.hostname;
   var isIp=/^\d{1,3}(\.\d{1,3}){3}$/.test(host);
 
-  // The Rock's Tailscale name once Other wallets is on; then everything,
-  // the Rock it app included, connects through it.
+  // Guilloché rosette: rotated ellipses, as behind the lock in Zecky Lock it.
+  (function(){
+    var s='',n=36,i,r;
+    for(i=0;i<n;i++)s+='<ellipse cx="150" cy="150" rx="142" ry="58" fill="none" stroke="#D4A657" stroke-opacity=".16" stroke-width=".7" transform="rotate('+(i*180/n)+' 150 150)"/>';
+    for(r=118;r<=146;r+=7)s+='<circle cx="150" cy="150" r="'+r+'" fill="none" stroke="#D4A657" stroke-opacity=".08" stroke-width=".6"/>';
+    $('rosette').innerHTML=s;
+  })();
+
+  // The Rock's Tailscale name once the private address is on; then
+  // everything, the Rock it app included, connects through it.
   var tsName='';
+  var synced=false,owState='';
   function each(sel,fn){Array.prototype.forEach.call(document.querySelectorAll(sel),fn);}
   function pairHost(){return tsName||host;}
   function showAddress(){
@@ -167,35 +253,56 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
     if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(text).then(done,function(){});}
     else{var r=document.createRange();r.selectNodeContents(code);var s=getSelection();s.removeAllRanges();s.addRange(r);try{document.execCommand('copy');done();}catch(e){}}
   }
-
   $('copy').addEventListener('click',function(){copyFrom($('address'),$('copy'));});
-
   function dot(cls,text){return '<span class="dot '+cls+'"></span>'+text;}
+  function esc(t){return String(t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+
+  // Steps: done ones fold away with a tick, the current ones open.
+  function setStep(n,state){
+    var el=$('s'+n);el.className='step '+state;
+    el.querySelector('.num').textContent=state==='done'?'✓':String(n);
+  }
+  function steps(){
+    var on=owState==='on';
+    setStep(1,synced?'done':'now');
+    setStep(2,on?'done':(synced?'now':'later'));
+    setStep(3,on&&synced?'now':'later');
+    setStep(4,on?'now':'later');
+    if(synced&&on){$('cardtitle').textContent='Your wallets';$('cardlede').textContent='Everything here runs on your own Umbrel.';}
+    else if(synced){$('cardtitle').textContent='Getting started';$('cardlede').textContent='Your node is in sync. A few more steps and your wallets use it.';}
+    else{$('cardtitle').textContent='Getting started';$('cardlede').textContent='Four calm steps. This page keeps track for you.';}
+  }
 
   function render(s){
     var n=s.node,pct=n.reachable?n.progress*100:0;
     port=s.walletServer.port||port;showAddress();
-    var head,sub;
-    if(s.phase==='starting'){head='Starting';sub='The Zcash node is starting. This takes a minute.';}
-    else if(s.phase==='syncing'){head='Syncing '+pct.toFixed(1)+'%';sub='Your node is downloading and checking the Zcash chain. A full sync takes days on a Raspberry Pi; you can close this page.';}
-    else if(s.phase==='opening'){head='Almost ready';sub='The node is in sync. The wallet server is opening its port.';}
-    else{head='Ready';sub='Your node is in sync. Connect your wallets below.';}
+    var head,sub,fill;
+    if(s.phase==='starting'){head='Starting';sub='Your Zcash node is starting. This takes a minute.';fill=0;}
+    else if(s.phase==='syncing'){head='Syncing';sub=pct.toFixed(1)+'% · block '+fmt(n.height)+' of about '+fmt(n.estimatedHeight)+'. A few days on a Raspberry Pi.';fill=pct/100;}
+    else if(s.phase==='opening'){head='Almost ready';sub='Your node is in sync. The wallet server is opening.';fill=1;}
+    else{head='Ready';sub='Block '+fmt(n.height)+', checked by you.';fill=1;}
     $('headline').innerHTML=head+'<span>.</span>';
     $('sub').textContent=sub;
-    var bar=$('bar');bar.firstElementChild.style.width=(s.phase==='ready'||s.phase==='opening'?100:pct)+'%';
-    bar.setAttribute('aria-valuenow',Math.round(pct));
+    $('arc').setAttribute('stroke-dashoffset',String(653.5*(1-Math.max(0,Math.min(1,fill)))));
+    $('peerdots').setAttribute('opacity',n.reachable&&n.peers?'1':'.4');
+    var pv=s.privacy;
+    var facts=[];
+    if(n.reachable&&n.peers!=null)facts.push('<span>'+dot(n.peers?'on':'wait','')+'<b>'+fmt(n.peers)+'</b> peers</span>');
+    if(pv)facts.push('<span>'+(pv.inbound?dot('wait','Open to other nodes'):dot('on','Private'))+'</span>');
+    if(s.disk)facts.push('<span><b>'+fmt(Math.round(s.disk.free/1e9))+' GB</b> free</span>');
+    $('facts').innerHTML=facts.join('');
     $('node').innerHTML=n.reachable?dot(pct>=99.9?'on':'wait',pct>=99.9?'In sync':'Syncing'):dot('','Starting');
     $('height').textContent=n.reachable?(fmt(n.height)+(pct<99.9?' of ~'+fmt(n.estimatedHeight):'')):'–';
     $('peers').textContent=n.reachable&&n.peers!=null?fmt(n.peers):'–';
-    $('wallets').innerHTML=s.walletServer.open?dot('on','Open on port '+port):dot('wait','Waiting for the node');
-    $('disk').textContent=s.disk?Math.round(s.disk.free/1e9).toLocaleString('en-US')+' GB of '+Math.round(s.disk.total/1e9).toLocaleString('en-US')+' GB':'–';
-    $('version').textContent=s.version?'Rock it '+s.version:'';
-    var pv=s.privacy;
+    $('wallets').innerHTML=s.walletServer.open?dot('on','Ready on port '+port):dot('wait','Waiting for the node');
+    $('disk').textContent=s.disk?fmt(Math.round(s.disk.free/1e9))+' GB of '+fmt(Math.round(s.disk.total/1e9))+' GB':'–';
     $('privacy').innerHTML=pv?(pv.inbound?dot('wait','Open to other nodes'):dot('on','Private, connects out only')):'–';
+    $('version').textContent=s.version?'Rock it '+s.version:'';
+    synced=s.phase==='ready'||s.phase==='opening';
+    steps();
   }
 
   var pairState=null;
-  function esc(t){return String(t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function pairLink(code,tls){
     var link='rockit://pair?h='+encodeURIComponent(pairHost())+'&c='+code;
     if(tls)link+='&t='+tls.port+'&k='+tls.pin;
@@ -214,7 +321,9 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
       var seen=d.seen?new Date(d.seen*1000).toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'}):'';
       return '<li><span>'+esc(d.name)+' <small>· last seen '+esc(seen)+'</small></span><button type="button" class="quiet" data-id="'+esc(d.id)+'">Remove</button></li>';
     }).join(''):'<li><span><small>No iPhones paired yet.</small></span></li>';
+    $('phones').querySelector('summary').textContent='Your iPhones'+(list.length?' ('+list.length+')':'');
     $('notls').hidden=!!st.tls;
+    $('pairbox').hidden=false;
     showExpiry();
   }
   function showExpiry(){
@@ -235,88 +344,90 @@ footer{border-top:1px solid var(--line);padding-top:16px;font-size:13px;color:va
     if(!confirm('Remove this iPhone? It will need to pair again.'))return;
     post('api/devices/remove',{id:id}).then(function(r){renderPair({code:pairState.code,expires:pairState.expires,tls:pairState.tls,devices:r.devices});});
   });
-  setInterval(function(){showExpiry();},15000);
+  setInterval(showExpiry,15000);
   setInterval(loadPair,30000);
 
   function tick(){
     fetch('api/status',{cache:'no-store'}).then(function(r){return r.json();}).then(render)
-      .catch(function(){$('sub').textContent='Cannot reach Rock it. Retrying…';})
+      .catch(function(){$('sub').textContent='Rock it is not answering. Trying again…';})
       .then(function(){setTimeout(tick,5000);});
   }
-  // Other wallets (Zodl, Vizor, ...) through the Rock's own Tailscale node.
+
+  // The private address: the Rock's own Tailscale node, the one way in for
+  // Zodl, Vizor, Lock it, Pocket and the Rock it app, at home and away.
   var owTimer=null,owWasOn=null;
   function qrSvg(text){
     if(typeof qrcode!=='function')return '';
     var q=qrcode(0,'M');q.addData(text);q.make();
     return q.createSvgTag({cellSize:4,margin:0,scalable:true});
   }
-  // The Rock it app's block sits in the main card when Tailscale is on, and
-  // under "Without Tailscale" when it is not.
   function placePair(on){
     var box=$('pairbox'),slot=$(on?'pair-on':'pair-off');
     if(box.parentNode!==slot)slot.appendChild(box);
   }
   function renderOw(w){
-    var b=$('ow-body'),f='',h='';
     var wasName=tsName;
+    owState=w.state;
     tsName=w.state==='on'?String(w.name||''):'';
-    var privacy='<p class="warn"><strong>Before you turn this on.</strong> Your Rock joins your own Tailscale network as <em>rockit</em>. Its name, <em>rockit.&lt;your-tailnet&gt;.ts.net</em>, then appears in public certificate logs. That does not show your home address, and only devices in your Tailscale network can connect.</p>';
-    var off='<div class="actions"><button type="button" class="quiet" data-ow="off">Turn off</button></div>';
+    var h='',s3='',f='';
+    var cancel='<div class="actions"><button type="button" class="quiet" data-ow="off">Cancel</button></div>';
     if(w.state==='unavailable'){
-      h='<p style="margin:0">Tailscale is not available right now. If this stays, restart Zecky Rock it on your Umbrel. Meanwhile, use your home Wi-Fi below.</p>';
+      h='<p>Tailscale is not available right now. If this stays, restart Zecky Rock it on your Umbrel. Meanwhile your wallets can use your home Wi-Fi, below.</p>';
     }else if(w.state==='off'){
-      h='<p class="lead serif">One address for all your wallets and the Rock it app.</p>'+
-        '<p style="margin:0;color:var(--muted)">Zodl, Vizor, Zecky Lock it, Pocket and the Rock it iPhone app all connect the same way: encrypted, at home and away, through your own Tailscale network.</p>'+
-        '<ul class="needs"><li>A free Tailscale account, and the Tailscale app on your phone</li><li>HTTPS Certificates on in your Tailscale admin console (DNS page)</li></ul>'+privacy+
-        '<div class="actions"><button type="button" data-ow="on">Turn on</button></div>';
+      h='<p>One encrypted address for all your wallets and the Rock it app, at home and away. It uses your own free Tailscale network; only your devices can reach it.</p>'+
+        '<p class="calm"><strong>Before you start:</strong> install Tailscale on your phone, and switch on HTTPS Certificates in the Tailscale admin console, on the DNS page.</p>'+
+        '<div class="actions"><button type="button" data-ow="on">Turn on</button></div>'+
+        '<p class="small">Your Rock joins your Tailscale network as <em>rockit</em>. Its name appears in public certificate logs. Your home address does not.</p>';
     }else if(w.state==='login'){
-      h='<p style="margin:0"><span class="dot wait"></span>Log in to Tailscale to finish.</p>'+
+      h='<p>'+dot('wait','')+'Log in to Tailscale to finish, with the account your phone uses.</p>'+
         '<div class="actions"><a class="btn" href="'+esc(w.link)+'" target="_blank" rel="noopener noreferrer">Open the Tailscale login</a><button type="button" class="quiet" data-ow="off">Cancel</button></div>'+
-        '<p class="note">Log in with the account your phone uses. This page updates by itself.</p>';
+        '<p class="small">This page updates by itself.</p>';
     }else if(w.state==='approve'){
-      h='<p style="margin:0"><span class="dot wait"></span>Approve the device <em>rockit</em> in your Tailscale admin console (Machines).</p>'+off;
+      h='<p>'+dot('wait','')+'Approve the device <em>rockit</em> in your Tailscale admin console, under Machines.</p><p class="small">This page updates by itself.</p>'+cancel;
     }else if(w.state==='nohttps'){
-      h='<p style="margin:0"><span class="dot wait"></span>Almost there. Switch on <strong>HTTPS Certificates</strong> in your Tailscale admin console, on the DNS page.</p>'+
-        '<p class="note">This page updates by itself once it is on.</p>'+off;
+      h='<p>'+dot('wait','')+'Almost there. Switch on <strong>HTTPS Certificates</strong> in your Tailscale admin console, on the DNS page.</p><p class="small">This page updates by itself.</p>'+cancel;
     }else if(w.state==='on'){
       var name=esc(w.name),wallet=esc(w.address);
-      h='<p style="margin:0"><span class="dot on"></span>Your Rock\'s address</p>'+
-        '<div class="addr"><code id="ow-address">'+name+'</code><button type="button" data-ow="copy">Copy</button></div>'+
-        '<p class="step1"><strong>Step 1, always:</strong> keep Tailscale on on your phone, also at home.</p>'+
-        '<dl class="uses">'+
-          '<dt>Lock it, Pocket, Vizor</dt><dd>Add a server: <code>'+wallet+'</code></dd>'+
-          '<dt>Zodl</dt><dd>More, Advanced Settings, Choose a server, custom: <code>'+name+':'+esc(String(w.address).split(':').pop())+'</code></dd>'+
-          '<dt>Rock it app</dt><dd>Scan the Rock it app QR code below</dd>'+
+      s3='<div class="addr"><code id="ow-address">'+wallet+'</code><button type="button" class="quiet" data-ow="copy">Copy</button></div>'+
+        '<dl class="apps">'+
+          '<dt>Lock it, Pocket, Vizor</dt><dd>Add a server, paste this address</dd>'+
+          '<dt>Zodl</dt><dd>More, Advanced Settings, Choose a server, Custom: <code>'+name+':'+esc(String(w.address).split(':').pop())+'</code></dd>'+
         '</dl>'+
-        '<p class="sub">Wallet server</p>'+
-        '<div class="qrs"><div><div class="qr" role="img" aria-label="Wallet server address as a QR code">'+qrSvg(w.address)+'</div>'+
-        '<p class="note">For wallets that can scan a server address. Nothing secret in it.</p></div></div>';
-      f='<p class="note">Turning it off logs your Rock out of Tailscale and every wallet using this address stops. If you turn it on again, remove the old <em>rockit</em> in your Tailscale admin console first, or the new one is named <em>rockit-1</em>.</p>'+off;
+        '<p class="calm"><strong>Keep Tailscale on</strong> on your phone, also at home.</p>';
+      f='<p class="sub">Wallet server</p>'+
+        '<div class="pair"><div class="qr" role="img" aria-label="Wallet server address as a QR code">'+qrSvg(w.address)+'</div>'+
+        '<p class="small">For wallets that can scan a server address. Nothing secret in it.</p></div>'+
+        '<p class="sub">Turning off</p>'+
+        '<p>Turning it off logs your Rock out of Tailscale, and every wallet using this address stops. If you turn it on again, first remove the old <em>rockit</em> in your Tailscale admin console, or the new one is named <em>rockit-1</em>.</p>'+
+        '<div class="actions"><button type="button" class="quiet" data-ow="off">Turn off</button></div>';
     }
-    b.innerHTML=h;
+    $('ow-body').innerHTML=h;
+    $('s3-body').innerHTML=s3;
     $('ow-foot').innerHTML=f;
+    $('more').hidden=w.state!=='on';
     placePair(w.state==='on');
-    // Without Tailscale, the home Wi-Fi way is the way in: open it then, and
-    // fold it away once Tailscale is on. Only when that changes, so a fold
-    // the owner opened or closed stays as it is.
+    // Without the private address, home Wi-Fi is the way in: open it then,
+    // and fold it away once the address is on. Only when that changes, so a
+    // fold the owner opened or closed stays as it is.
     var isOn=w.state==='on';
-    if(isOn!==owWasOn){$('local').open=!isOn;owWasOn=isOn;}
+    if(isOn!==owWasOn){$('local').open=!isOn&&synced;owWasOn=isOn;}
     showAddress();
+    steps();
     if(tsName!==wasName&&pairState)renderPair(pairState);
     clearTimeout(owTimer);
     owTimer=setTimeout(loadOw,(w.state==='on'||w.state==='off'||w.state==='unavailable')?30000:4000);
   }
   function loadOw(){fetch('api/wallets',{cache:'no-store'}).then(function(r){return r.json();}).then(renderOw).catch(function(){});}
-  $('ow').addEventListener('click',function(e){
+  $('ow').parentNode.addEventListener('click',function(e){
     var t=e.target&&e.target.getAttribute('data-ow');if(!t)return;
     if(t==='copy'){copyFrom($('ow-address'),e.target);return;}
-    if(t==='on'&&!confirm('Turn on Tailscale for your Rock? Its Tailscale name becomes public in certificate logs. Your home address does not.'))return;
-    if(t==='off'&&!confirm('Turn off Tailscale for your Rock? Wallets and the Rock it app using this address stop working.'))return;
+    if(t==='on'&&!confirm('Turn on the private address? Your Rock\'s Tailscale name becomes public in certificate logs. Your home address does not.'))return;
+    if(t==='off'&&!confirm('Turn off the private address? Wallets and the Rock it app using it stop working.'))return;
     e.target.disabled=true;
     post('api/wallets/'+t).then(renderOw).catch(function(){e.target.disabled=false;});
   });
 
-  showAddress();tick();loadPair();loadOw();
+  showAddress();steps();tick();loadPair();loadOw();
 })();
 </script>
 </body>
