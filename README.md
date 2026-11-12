@@ -1,6 +1,6 @@
 # Zecky Rock it
 
-Your own Zcash node at home, for Zecky Lock it and Zecky Pocket.
+Your own Zcash node at home, for Zecky Lock it and Zecky Flip it.
 
 Rock it runs two programs side by side:
 
@@ -10,7 +10,7 @@ Rock it runs two programs side by side:
   questions by asking Zakura.
 
 ```
-Lock it / Pocket  --8137-->  Zaino  --RPC 8232-->  Zakura  --8233-->  Zcash network
+Lock it / Flip it --8137-->  Zaino  --RPC 8232-->  Zakura  --8233-->  Zcash network
                              (rockitnet, a private Docker network)
 ```
 
@@ -44,7 +44,7 @@ The first build of Zaino takes about an hour on a Raspberry Pi 5.
 Zakura needs the chain before it is useful: either a full sync (days) or one
 of Zakura's snapshots (`docs/findings.md`).
 
-In Lock it or Pocket: Settings, Network, Add a server. Use the Pi's home
+In Lock it or Flip it: Settings, Network, Add a server. Use the Pi's home
 address (for example `192.168.1.20:8137`) and its Tailscale address
 (`100.x.x.x:8137`) for when you are away, each under its own name.
 
@@ -78,7 +78,7 @@ built for arm64 and amd64 by the workflows in `.github/workflows/`.
 ## The Zaino patches
 
 Zaino is patched for one reason: wallets on the ECC SDK (which Lock it and
-Pocket use) ask for all Sapling and Orchard subtree roots when they start, and
+Flip it use) ask for all Sapling and Orchard subtree roots when they start, and
 stock Zaino looks up one block per root (about 1,100 of them). On a Pi that
 takes minutes, the wallet gives up after about 30 seconds, and it never gets
 past "Starting".
