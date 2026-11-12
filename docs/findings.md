@@ -111,6 +111,12 @@ these measurements) and zingolabs/zaino#1673 (tree state by height).
   wallets through Rock it see no new blocks until Zaino is updated. NU7
   support is in zingolabs/zaino#1655 (not merged or released on 5 November
   2026). Funds are not at risk.
+- Rock it 0.3.15 builds Zaino from that pull request (commit aaf8122a7, image
+  0.10.2-nu7-rockit1) with both Rock it patches, which apply unchanged.
+  Confirmed on 6 November 2026: after NU7 the node synced past block
+  3,543,405 and Zecky Lock it kept syncing through Rock it. The build logs a
+  "[TEST] received call" line per request; harmless. Move to the official
+  release when it is out.
 
 ## What the node tells about the network (checked 25 October 2026)
 
