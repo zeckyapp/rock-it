@@ -87,6 +87,10 @@ services:
       # on Rock it's own network: other Umbrel apps cannot reach it.
       ZAKURA_RPC__LISTEN_ADDR: "0.0.0.0:8232"
       ZAKURA_RPC__ENABLE_COOKIE_AUTH: "false"
+      # Ask for fewer peers (at most 24), so another Zcash node in the same
+      # home, such as Go Max in Zecky Lock it, gets a share: other nodes
+      # accept one connection per home internet address.
+      ZAKURA_NETWORK__PEERSET_INITIAL_TARGET_SIZE: "16"
     volumes:
       - ${APP_DATA_DIR}/data/zakura:/home/zebra/.cache/zakura
     networks:
