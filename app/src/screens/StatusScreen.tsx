@@ -1,20 +1,25 @@
 import Clipboard from '@react-native-clipboard/clipboard';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   AppState,
   Pressable,
   RefreshControl,
-  ScrollView,
   Text,
   View,
 } from 'react-native';
-import { ProgressRing } from '../components/ProgressRing';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BrassButton } from '../components/rock/BrassButton';
+import { Medallion } from '../components/rock/Medallion';
+import { Panel } from '../components/rock/Panel';
+import { RockCoin } from '../components/rock/RockCoin';
+import { SyncRing } from '../components/rock/SyncRing';
 import { Address, WALLET_PORT } from '../lib/address';
 import { version as APP_VERSION } from '../../package.json';
 import { checkRock, Reached } from '../lib/check';
 import { loadKey } from '../lib/key';
 import { Rock } from '../lib/rock';
-import { formatGB, RockError, summarize, tiles } from '../lib/status';
+import { formatGB, hero, RockError, tiles } from '../lib/status';
 import { fonts, makeStyles, space, useColors } from '../theme';
 
 const POLL_MS = 10_000;
@@ -31,14 +36,23 @@ function ago(ms: number): string {
   return `${Math.round(s / 60)} min ago`;
 }
 
+/**
+ * The main screen, in the Lock it layout: the Rock it coin on its
+ * guilloché medallion with the sync ring around it, one big number, two
+ * calm lines, one brass button, and a bottom bar. Everything else lives in
+ * the Connect a wallet and Details panels.
+ */
 export function StatusScreen({ rock, onEdit }: Props) {
   const colors = useColors();
   const styles = useStyles();
+  const insets = useSafeAreaInsets();
   const [reached, setReached] = useState<Reached | null>(null);
   const [error, setError] = useState<RockError | null>(null);
   const [checkedAt, setCheckedAt] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [wallets, setWallets] = useState(false);
+  const [details, setDetails] = useState(false);
   const [, tick] = useState(0);
   const running = useRef(false);
 
@@ -93,8 +107,30 @@ export function StatusScreen({ rock, onEdit }: Props) {
   }, [check]);
 
   const status = error ? null : reached?.status ?? null;
-  const summary = status ? summarize(status) : null;
-  const waiting = status == null && error == null;
+  const h = hero(status, error != null);
+  const via =
+    status && reached
+      ? reached.via === 'away'
+        ? 'Through Tailscale'
+        : 'At home'
+      : null;
+
+  // The hero shrinks on small iPhones so the screen fits without scrolling,
+  // and fades in once that room is measured (as in Lock it).
+  const [area, setArea] = useState(0);
+  const below = 250 + (error ? 90 : 0);
+  const heroScale =
+    area === 0 ? 1 : Math.min(1, Math.max(0.5, (area - below) / 396));
+  const fade = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (area > 0) {
+      Animated.timing(fade, {
+        toValue: 1,
+        duration: 450,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [area, fade]);
 
   function copy(text: string) {
     Clipboard.setString(text);
@@ -118,141 +154,150 @@ export function StatusScreen({ rock, onEdit }: Props) {
   }
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.page}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          tintColor={colors.gold}
-          onRefresh={async () => {
-            setRefreshing(true);
-            await check();
-            setRefreshing(false);
-          }}
-        />
-      }
-    >
-      <View style={styles.header}>
-        <View style={styles.flex}>
-          <Text style={styles.eyebrow}>Zcash node</Text>
-          <Text style={styles.name} numberOfLines={1}>
-            {rock.name}
-          </Text>
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onEdit}
-          hitSlop={12}
-          style={({ pressed }) => pressed && styles.dim}
-        >
-          <Text style={styles.link}>Edit</Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.hero}>
-        <ProgressRing progress={summary?.progress ?? 0} muted={error != null} />
-        <View style={styles.heroText} pointerEvents="none">
-          <Text
-            style={[styles.headline, summary?.tone === 'ok' && styles.live]}
-            adjustsFontSizeToFit
-            numberOfLines={1}
-          >
-            {waiting ? 'Looking…' : summary?.headline ?? 'Out of reach'}
-          </Text>
+    <View style={styles.container}>
+      <View style={styles.topBar}>
+        <View style={styles.wordmark}>
+          <Text style={styles.brand}>ZECKY</Text>
+          <Text style={styles.product}>Rock it</Text>
         </View>
       </View>
 
-      <Text style={styles.detail} accessibilityLiveRegion="polite">
-        {error ? error.message : summary?.detail ?? 'Knocking on your Rock.'}
-      </Text>
-      {error?.kind === 'unpaired' ? (
-        <Pressable
-          accessibilityRole="button"
-          onPress={onEdit}
-          style={({ pressed }) => [styles.copy, pressed && styles.dim]}
-        >
-          <Text style={styles.copyValue}>Pair again</Text>
-        </Pressable>
-      ) : null}
-      {error?.kind === 'unreachable' ? (
-        <Text style={styles.help}>
-          {rock.away
-            ? 'At home, check that the phone is on your Wi-Fi and that Rock it may use your local network (Settings › Rock it › Local Network). Away, check that Tailscale is on, on the phone and on the Umbrel.'
-            : 'Check that the phone is on the same Wi-Fi as your Umbrel, and that Rock it may use your local network (Settings › Rock it › Local Network). To check from anywhere, add its Tailscale address under Edit.'}
-        </Text>
-      ) : null}
-
-      {status ? (
-        <View style={styles.tiles}>
-          {tiles(status).map(t => (
-            <View
-              key={t.title}
-              style={styles.tile}
-              accessible
-              accessibilityLabel={`${t.title}: ${t.text} ${t.subtext}`.trim()}
-            >
-              <Text style={styles.tileTitle}>{t.title}</Text>
-              <Text
-                style={styles.tileText}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-              >
-                {t.text}
-              </Text>
-              <Text style={styles.tileSub} numberOfLines={1}>
-                {/* An empty line keeps all four tiles the same height. */}
-                {t.subtext || '\u00a0'}
-              </Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
-
-      {status ? (
-        <View style={styles.card}>
-          <Row
-            label="Reached"
-            value={reached?.via === 'away' ? 'Through Tailscale' : 'At home'}
-            last={!status.disk && !status.version}
+      <Animated.ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        onLayout={e => setArea(e.nativeEvent.layout.height)}
+        style={{ opacity: fade }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            tintColor={colors.gold}
+            onRefresh={async () => {
+              setRefreshing(true);
+              await check();
+              setRefreshing(false);
+            }}
           />
-          {status.disk ? (
-            <Row
-              label="Drive"
-              value={`${formatGB(status.disk.free)} free of ${formatGB(
-                status.disk.total,
-              )}`}
-              last={!status.version}
-            />
-          ) : null}
-          {status.version ? (
-            <Row label="Rock it on Umbrel" value={status.version} last />
-          ) : null}
-        </View>
-      ) : null}
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>For your wallets</Text>
-        <Text style={styles.help}>
-          In the wallet: Settings, Network, Add a server. Tap to copy.
-        </Text>
-        {anywhere ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityHint="Copies the address"
-            onPress={() => copy(anywhere.address)}
-            style={({ pressed }) => [styles.copyWide, pressed && styles.dim]}
+        }
+      >
+        <View style={styles.spaceAbove} />
+        <View
+          style={[styles.hero, { height: Math.round(396 * heroScale) }]}
+          accessible
+          accessibilityRole="image"
+          accessibilityLabel={`Your Rock: ${h.status}`}
+        >
+          <View style={styles.heroLayer} pointerEvents="none">
+            <Medallion diameter={Math.round(700 * heroScale)} />
+          </View>
+          <View
+            style={[styles.heroLayer, h.tone !== 'ok' && styles.ringWaiting]}
+            pointerEvents="none"
           >
-            <Text style={styles.copyLabel}>Anywhere · encrypted</Text>
-            <Text style={styles.copyValue}>
-              {copied === anywhere.address ? 'Copied' : anywhere.address}
-            </Text>
-          </Pressable>
-        ) : null}
-        {anywhere ? (
-          <Text style={styles.help}>
-            Lock it, Pocket, Vizor: paste as is. Zodl: leave out https://.
-            Keep Tailscale on on your phone, also at home.
+            <SyncRing
+              progress={h.progress}
+              diameter={Math.round(364 * heroScale)}
+            />
+          </View>
+          <RockCoin
+            plate={h.plate}
+            dull={h.tone === 'off'}
+            size={Math.round(236 * heroScale)}
+          />
+        </View>
+
+        <View style={styles.valueRow} accessible>
+          <Text style={styles.value} numberOfLines={1} adjustsFontSizeToFit>
+            {h.value}
           </Text>
+          {h.unit ? <Text style={styles.unit}> {h.unit}</Text> : null}
+        </View>
+        <Text style={styles.line}>{h.line}</Text>
+        {h.accent || h.rest ? (
+          <Text style={styles.line}>
+            {h.accent ? <Text style={styles.accent}>{h.accent}</Text> : null}
+            {h.rest}
+          </Text>
+        ) : null}
+
+        {error ? (
+          <Text style={styles.calm}>
+            {error.message}
+            {error.kind === 'unreachable'
+              ? rock.away
+                ? ' At home, check that the phone is on your Wi-Fi and that Rock it may use your local network (Settings › Rock it › Local Network). Away, check that Tailscale is on, on the phone and on the Umbrel.'
+                : ' Check that the phone is on the same Wi-Fi as your Umbrel, and that Rock it may use your local network (Settings › Rock it › Local Network). To check from anywhere, add its Tailscale address in Settings.'
+              : ''}
+          </Text>
+        ) : null}
+
+        <View style={styles.brass}>
+          {error?.kind === 'unpaired' || error?.kind === 'pin' ? (
+            <BrassButton label="Pair again" icon={null} onPress={onEdit} />
+          ) : (
+            <BrassButton
+              label="Connect a wallet"
+              onPress={() => setWallets(true)}
+            />
+          )}
+        </View>
+        <View style={styles.spaceBelow} />
+      </Animated.ScrollView>
+
+      <View
+        style={[
+          styles.bottomBar,
+          { paddingBottom: Math.max(insets.bottom, space.sm) },
+        ]}
+      >
+        <View style={styles.statusRow}>
+          <View
+            style={[
+              styles.dot,
+              h.tone === 'ok' && styles.dotOk,
+              h.tone === 'off' && styles.dotOff,
+            ]}
+          />
+          <Text style={styles.status} numberOfLines={1}>
+            {h.status}
+            {via ? ` · ${via}` : ''}
+          </Text>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          hitSlop={10}
+          onPress={() => setDetails(true)}
+        >
+          <Text style={styles.link}>Details</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" hitSlop={10} onPress={onEdit}>
+          <Text style={[styles.link, styles.linkGap]}>Settings</Text>
+        </Pressable>
+      </View>
+
+      <Panel
+        visible={wallets}
+        title="Connect a wallet"
+        subtitle="In the wallet: Settings, Network, Add a server. Tap an address to copy it."
+        onClose={() => setWallets(false)}
+      >
+        {anywhere ? (
+          <>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityHint="Copies the address"
+              onPress={() => copy(anywhere.address)}
+              style={({ pressed }) => [styles.copyWide, pressed && styles.dim]}
+            >
+              <Text style={styles.copyLabel}>Anywhere · encrypted</Text>
+              <Text style={styles.copyValue}>
+                {copied === anywhere.address ? 'Copied' : anywhere.address}
+              </Text>
+            </Pressable>
+            <Text style={styles.help}>
+              Lock it, Pocket, Vizor: paste as is. Zodl: leave out https://.
+              Keep Tailscale on on your phone, also at home.
+            </Text>
+          </>
         ) : null}
         {walletAddresses.map(({ label, address }) => {
           const text = `${address.host}:${walletPort}`;
@@ -265,7 +310,7 @@ export function StatusScreen({ rock, onEdit }: Props) {
               style={({ pressed }) => [styles.copy, pressed && styles.dim]}
             >
               <Text style={styles.copyLabel}>{label}</Text>
-              <Text style={styles.copyValue}>
+              <Text style={styles.copyValueSmall}>
                 {copied === text ? 'Copied' : text}
               </Text>
             </Pressable>
@@ -273,8 +318,8 @@ export function StatusScreen({ rock, onEdit }: Props) {
         })}
         {rock.home ? (
           <Text style={styles.help}>
-            Only on your own Wi-Fi, never a guest or public network. Away, or
-            on any other network, use the Tailscale address: it is encrypted.
+            Only on your own Wi-Fi, never a guest or public network. Away, or on
+            any other network, use the Tailscale address: it is encrypted.
           </Text>
         ) : null}
         {status && !anywhere ? (
@@ -283,14 +328,63 @@ export function StatusScreen({ rock, onEdit }: Props) {
             works everywhere, for every wallet.
           </Text>
         ) : null}
-      </View>
+      </Panel>
 
-      {/* Always shown, also when the Rock can't be reached. */}
-      <Text style={styles.footer}>
-        Rock it app {APP_VERSION}
-        {checkedAt ? ` · Checked ${ago(Date.now() - checkedAt)}` : ''}
-      </Text>
-    </ScrollView>
+      <Panel
+        visible={details}
+        title="Details"
+        subtitle={rock.name}
+        onClose={() => setDetails(false)}
+      >
+        {status ? (
+          <View style={styles.tiles}>
+            {tiles(status).map(t => (
+              <View
+                key={t.title}
+                style={styles.tile}
+                accessible
+                accessibilityLabel={`${t.title}: ${t.text} ${t.subtext}`.trim()}
+              >
+                <Text style={styles.tileTitle}>{t.title}</Text>
+                <Text
+                  style={styles.tileText}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
+                  {t.text}
+                </Text>
+                <Text style={styles.tileSub} numberOfLines={1}>
+                  {/* An empty line keeps all four tiles the same height. */}
+                  {t.subtext || ' '}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.help}>
+            {error ? error.message : 'Knocking on your Rock.'}
+          </Text>
+        )}
+        <View style={styles.card}>
+          <Row label="Reached" value={via ?? '–'} />
+          {status?.disk ? (
+            <Row
+              label="Drive"
+              value={`${formatGB(status.disk.free)} free of ${formatGB(
+                status.disk.total,
+              )}`}
+            />
+          ) : null}
+          <Row label="Rock it on Umbrel" value={status?.version || '–'} />
+          <Row label="Rock it app" value={APP_VERSION} />
+          <Row
+            label="Checked"
+            value={checkedAt ? ago(Date.now() - checkedAt) : '–'}
+            last
+          />
+        </View>
+      </Panel>
+    </View>
   );
 }
 
@@ -313,38 +407,112 @@ function Row({
 }
 
 const useStyles = makeStyles(colors => ({
-  flex: { flex: 1 },
+  container: { flex: 1, backgroundColor: colors.ink },
   dim: { opacity: 0.6 },
-  page: { padding: space.lg, gap: space.md, paddingBottom: space.xl },
-  header: { flexDirection: 'row', alignItems: 'flex-end', gap: space.md },
-  eyebrow: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 12,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
+  topBar: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: space.sm,
+    paddingHorizontal: space.md,
+    zIndex: 1,
+  },
+  wordmark: { flexDirection: 'row', alignItems: 'baseline' },
+  brand: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: 13,
+    letterSpacing: 5.5,
     color: colors.gold,
   },
-  name: { fontFamily: fonts.serif, fontSize: 28, color: colors.text },
-  link: { fontFamily: fonts.sansMedium, fontSize: 16, color: colors.gold },
+  product: {
+    fontFamily: fonts.serif,
+    fontSize: 15,
+    color: colors.textMuted,
+    marginLeft: 6,
+  },
+  scroll: {
+    flexGrow: 1,
+    paddingHorizontal: space.lg,
+    paddingBottom: space.sm,
+  },
+  spaceAbove: { flexGrow: 1.6 },
+  spaceBelow: { flexGrow: 1 },
   hero: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: space.lg,
+    marginBottom: space.md,
   },
-  heroText: {
+  heroLayer: {
     position: 'absolute',
-    left: space.xl + 20,
-    right: space.xl + 20,
+    top: 0,
+    bottom: 0,
+    left: -space.lg,
+    right: -space.lg,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  headline: { fontFamily: fonts.serif, fontSize: 38, color: colors.text },
-  live: { color: colors.gold },
-  detail: {
-    fontFamily: fonts.sans,
-    fontSize: 16,
+  ringWaiting: { opacity: 0.6 },
+  valueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'center',
+    marginTop: space.sm,
+  },
+  value: {
+    fontFamily: fonts.serifMedium,
+    fontSize: 52,
     color: colors.text,
-    textAlign: 'center',
     fontVariant: ['tabular-nums'],
+    flexShrink: 1,
+  },
+  unit: { fontFamily: fonts.sansMedium, fontSize: 15, color: colors.textMuted },
+  line: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: space.xs + 2,
+    fontVariant: ['tabular-nums'],
+  },
+  accent: { fontFamily: fonts.sansMedium, color: colors.gold },
+  calm: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: space.md,
+  },
+  brass: { alignSelf: 'center', width: 230, marginTop: space.lg },
+  bottomBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderTopWidth: 0.5,
+    borderTopColor: colors.line,
+    paddingTop: space.sm + 2,
+    paddingHorizontal: space.md + 4,
+  },
+  statusRow: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.gold,
+    marginRight: space.sm,
+  },
+  dotOk: { backgroundColor: colors.ok },
+  dotOff: { backgroundColor: colors.danger },
+  status: {
+    flexShrink: 1,
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  linkGap: { marginLeft: space.md + 4 },
+  link: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    color: colors.textMuted,
+    marginLeft: space.md,
   },
   help: {
     fontFamily: fonts.sans,
@@ -352,12 +520,7 @@ const useStyles = makeStyles(colors => ({
     lineHeight: 21,
     color: colors.textMuted,
   },
-  tiles: {
-    marginTop: space.md,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
+  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   tile: {
     flexBasis: '47%',
     flexGrow: 1,
@@ -376,7 +539,6 @@ const useStyles = makeStyles(colors => ({
   },
   tileSub: { fontFamily: fonts.sans, fontSize: 13, color: colors.textMuted },
   card: {
-    marginTop: space.xs,
     borderRadius: 14,
     backgroundColor: colors.inkRaised,
     paddingHorizontal: space.md,
@@ -396,12 +558,6 @@ const useStyles = makeStyles(colors => ({
     fontVariant: ['tabular-nums'],
     flexShrink: 1,
     textAlign: 'right',
-  },
-  section: { gap: space.sm, marginTop: space.lg },
-  sectionTitle: {
-    fontFamily: fonts.sansSemiBold,
-    fontSize: 15,
-    color: colors.text,
   },
   copy: {
     flexDirection: 'row',
@@ -427,13 +583,11 @@ const useStyles = makeStyles(colors => ({
     fontFamily: fonts.sansMedium,
     fontSize: 15,
     color: colors.gold,
-    fontVariant: ['tabular-nums'],
   },
-  footer: {
-    fontFamily: fonts.sans,
-    fontSize: 12,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginTop: space.md,
+  copyValueSmall: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 15,
+    color: colors.gold,
+    fontVariant: ['tabular-nums'],
   },
 }));

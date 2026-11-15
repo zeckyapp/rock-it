@@ -1,4 +1,10 @@
-import { Address, addressLabel, isPrivate, PHONE_PORT } from './address';
+import {
+  Address,
+  addressLabel,
+  isPrivate,
+  isTailscale,
+  PHONE_PORT,
+} from './address';
 import { rockRequest } from './https';
 import { RockError } from './status';
 
@@ -18,6 +24,12 @@ export interface PairLink {
   code: string;
   /** The Rock's certificate fingerprint (base64url SHA-256), from the QR. */
   pin: string | null;
+  /**
+   * The home address too, when the QR carries the Tailscale name (`l=`, from
+   * Rock it on Umbrel that sends it), so pairing also works at home with
+   * Tailscale off.
+   */
+  home?: Address;
 }
 
 /** A certificate fingerprint: 32 bytes as base64url, 43 characters. */
@@ -26,6 +38,7 @@ const PIN = /^[A-Za-z0-9_-]{43}$/;
 /**
  * Reads the link in the Umbrel page's QR code:
  *   rockit://pair?h=umbrel.local&c=ABCDEFGH&t=8139&k=<fingerprint>
+ * or, with Connect on, h=<Tailscale name> and l=<home address>.
  * Only private addresses (home network, Tailscale) are accepted, so a link
  * from a website cannot pair the app with a server on the internet.
  */
@@ -50,7 +63,25 @@ export function parsePairLink(url: string): PairLink | null {
   const code = cleanCode(params.c ?? '');
   if (code == null) return null;
   if (params.k != null && !PIN.test(params.k)) return null;
-  return { address: { host, port }, code, pin: params.k ?? null };
+  const l = (params.l ?? '').toLowerCase();
+  let home: Address | undefined;
+  if (l) {
+    // Only a home address: never the internet, never a second Tailscale one.
+    if (
+      !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(l) ||
+      !isPrivate(l) ||
+      isTailscale(l)
+    ) {
+      return null;
+    }
+    home = { host: l, port };
+  }
+  return {
+    address: { host, port },
+    code,
+    pin: params.k ?? null,
+    ...(home ? { home } : {}),
+  };
 }
 
 export interface Paired {
@@ -120,4 +151,45 @@ export async function pairWith(
     `${addressLabel(address)} answered, but it is not Rock it 0.3.0 or newer.`,
     'notRockIt',
   );
+}
+
+/**
+ * Pairs through the first address that answers: home first (it works with
+ * Tailscale off), then Tailscale. Only "no answer" moves on to the next
+ * address; a wrong code stops at once, so it never costs a second try.
+ */
+export async function pairFirst(
+  targets: Address[],
+  code: string,
+  name: string,
+  pin: string | null,
+  pair: typeof pairWith = pairWith,
+): Promise<{ paired: Paired; via: Address }> {
+  let last: unknown = new RockError(
+    'Enter at least one address.',
+    'unreachable',
+  );
+  for (const target of targets) {
+    try {
+      return { paired: await pair(target, code, name, pin), via: target };
+    } catch (e) {
+      if (!(e instanceof RockError) || e.kind !== 'unreachable') throw e;
+      last = e;
+    }
+  }
+  throw last;
+}
+
+/** Whether the Rock answers on this address, with its pinned certificate. */
+export async function answers(
+  address: Address,
+  pin: string,
+  timeoutMs = 4000,
+): Promise<boolean> {
+  try {
+    const r = await rockRequest(address, '/phone/hello', { pin, timeoutMs });
+    return r.json?.rockit === true;
+  } catch {
+    return false;
+  }
 }

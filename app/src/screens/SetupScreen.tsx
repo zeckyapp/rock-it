@@ -19,7 +19,13 @@ import {
 import { checkRock } from '../lib/check';
 import { clearKey, loadKey, saveKey } from '../lib/key';
 import { scanQr } from 'rockit-tls';
-import { cleanCode, PairLink, pairWith, parsePairLink } from '../lib/pair';
+import {
+  answers,
+  cleanCode,
+  PairLink,
+  pairFirst,
+  parsePairLink,
+} from '../lib/pair';
 import { cleanName, MAX_NAME, Rock, saveRock } from '../lib/rock';
 import { RockError } from '../lib/status';
 import { fonts, makeStyles, space } from '../theme';
@@ -41,8 +47,11 @@ function initialHome(rock: Rock | null, link: PairLink | null): string {
   if (link && !isTailscale(link.address.host)) {
     return shortLabel(link.address);
   }
+  // A Tailscale QR: its home address if it sends one, else the one we know,
+  // else umbrel.local, so pairing also works at home with Tailscale off.
+  if (link?.home) return shortLabel(link.home);
   if (rock?.home) return shortLabel(rock.home);
-  return link ? '' : 'umbrel.local';
+  return 'umbrel.local';
 }
 
 function initialAway(rock: Rock | null, link: PairLink | null): string {
@@ -62,6 +71,8 @@ export function SetupScreen({ rock, link, onDone, onCancel, onLink }: Props) {
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Scanning problems show right under the Scan button, where you look.
+  const [scanError, setScanError] = useState<string | null>(null);
   const [draft, setDraft] = useState<Rock | null>(null);
   const deviceId = rock?.deviceId ?? null;
   const paired = deviceId != null;
@@ -100,12 +111,13 @@ export function SetupScreen({ rock, link, onDone, onCancel, onLink }: Props) {
 
   async function scan() {
     setError(null);
+    setScanError(null);
     let text: string | null;
     try {
       text = await scanQr();
     } catch (e) {
       const reason = (e as { code?: unknown } | null)?.code;
-      setError(
+      setScanError(
         reason === 'denied'
           ? 'Camera access is off for Rock it. Turn it on in Settings, Rock it, or scan with the iPhone Camera app instead.'
           : 'This device has no camera. Type the code instead.',
@@ -115,8 +127,8 @@ export function SetupScreen({ rock, link, onDone, onCancel, onLink }: Props) {
     if (text == null) return; // cancelled
     const found = parsePairLink(text);
     if (found == null) {
-      setError(
-        'That QR code is not a Rock it pairing code. Scan the one on your Umbrel’s Rock it page.',
+      setScanError(
+        'That QR code is not a Rock it pairing code. Scan the Rock it app code on your Umbrel’s Rock it page.',
       );
       return;
     }
@@ -138,12 +150,16 @@ export function SetupScreen({ rock, link, onDone, onCancel, onLink }: Props) {
     setBusy(true);
     try {
       if (clean) {
-        // Pair through the address the code came from: the link's, or home.
-        const target =
-          link && a && isTailscale(link.address.host) ? a : h ?? (a as Address);
+        // Home first (works with Tailscale off), then Tailscale.
+        const targets = [h, a].filter((x): x is Address => x != null);
         // The QR's fingerprint; when re-pairing by hand, the one already kept.
         const pin = link ? link.pin : rock?.pin ?? null;
-        const fresh = await pairWith(target, clean, DEVICE_NAME, pin);
+        const { paired: fresh, via } = await pairFirst(
+          targets,
+          clean,
+          DEVICE_NAME,
+          pin,
+        );
         await saveKey(fresh.deviceId, fresh.key);
         saveRock({
           name: cleanName(name),
@@ -152,6 +168,16 @@ export function SetupScreen({ rock, link, onDone, onCancel, onLink }: Props) {
           deviceId: fresh.deviceId,
           pin: fresh.pin,
         });
+        // Paired at home: say so if the Tailscale address doesn't answer,
+        // so the owner knows to turn Tailscale on for away.
+        if (a != null && via === h && !(await answers(a, fresh.pin))) {
+          Alert.alert(
+            'Paired at home',
+            'Your Tailscale address didn’t answer. Turn on Tailscale on this iPhone to check on your Rock away from home.',
+            [{ text: 'OK', onPress: onDone }],
+          );
+          return;
+        }
         onDone();
         return;
       }
@@ -244,6 +270,11 @@ export function SetupScreen({ rock, link, onDone, onCancel, onLink }: Props) {
         )}
 
         {link ? null : <Button label="Scan the QR code" onPress={scan} />}
+        {scanError ? (
+          <Text accessibilityLiveRegion="polite" style={styles.error}>
+            {scanError}
+          </Text>
+        ) : null}
 
         <View style={styles.fields}>
           <Field
@@ -309,7 +340,11 @@ export function SetupScreen({ rock, link, onDone, onCancel, onLink }: Props) {
             <Button label="Cancel" variant="quiet" onPress={onCancel} />
           ) : null}
           {paired && !link ? (
-            <Button label="Forget this Rock" variant="quiet" onPress={forget} />
+            <Button
+              label="Forget this Rock"
+              variant="danger"
+              onPress={forget}
+            />
           ) : null}
         </View>
       </ScrollView>

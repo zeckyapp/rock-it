@@ -2,7 +2,9 @@
 //
 // Apple's own camera framework (AVFoundation), no third-party code. The camera
 // runs only while the scanner is open, nothing is recorded or kept, and the
-// result is just the text in the QR code.
+// result is just the text in the QR code. Only a Rock it pairing code
+// (rockit://...) is taken: the Umbrel page also shows a Wallet server code
+// right above it, and that one is skipped with a hint.
 
 #import <AVFoundation/AVFoundation.h>
 #import <React/RCTBridgeModule.h>
@@ -16,6 +18,7 @@
 @implementation RockitScannerController {
   AVCaptureSession *_session;
   AVCaptureVideoPreviewLayer *_preview;
+  UILabel *_hint;
   BOOL _finished;
 }
 
@@ -50,12 +53,13 @@
 
   UILabel *hint = [UILabel new];
   hint.translatesAutoresizingMaskIntoConstraints = NO;
-  hint.text = @"Point at the QR code on your Umbrel's Rock it page";
+  hint.text = @"Point at the Rock it app QR code on your Umbrel's Rock it page";
   hint.textColor = [UIColor colorWithRed:0xF2 / 255.0 green:0xEF / 255.0 blue:0xE8 / 255.0 alpha:1];
   hint.font = [UIFont systemFontOfSize:16 weight:UIFontWeightMedium];
   hint.textAlignment = NSTextAlignmentCenter;
   hint.numberOfLines = 0;
   [self.view addSubview:hint];
+  _hint = hint;
 
   UIButton *cancel = [UIButton buttonWithType:UIButtonTypeSystem];
   cancel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -107,14 +111,23 @@
     didOutputMetadataObjects:(NSArray<__kindof AVMetadataObject *> *)objects
               fromConnection:(AVCaptureConnection *)connection
 {
+  BOOL other = NO;
   for (AVMetadataObject *object in objects) {
     if ([object isKindOfClass:[AVMetadataMachineReadableCodeObject class]]) {
       NSString *text = ((AVMetadataMachineReadableCodeObject *)object).stringValue;
-      if (text.length > 0) {
+      if (text.length == 0) {
+        continue;
+      }
+      if ([text.lowercaseString hasPrefix:@"rockit://"]) {
         [self finish:text];
         return;
       }
+      other = YES;
     }
+  }
+  // Only another code in view, such as the Wallet server code: keep looking.
+  if (other && !_finished) {
+    _hint.text = @"That's the Wallet server code. Point at the Rock it app code below it.";
   }
 }
 

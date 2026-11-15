@@ -7,9 +7,10 @@ import {
 import { checkRock } from '../src/lib/check';
 import { noAnswer } from '../src/lib/https';
 import { parseRock } from '../src/lib/rock';
-import { cleanCode, pairWith, parsePairLink } from '../src/lib/pair';
+import { cleanCode, pairFirst, pairWith, parsePairLink } from '../src/lib/pair';
 import {
   fetchStatus,
+  hero,
   parseOtherWallets,
   parseStatus,
   RockError,
@@ -137,11 +138,16 @@ describe('the one address for every wallet', () => {
 
   it('shows it only when Connect is on', () => {
     expect(parseStatus(ready)!.otherWallets).toBeNull();
-    expect(parseStatus({ ...ready, otherWallets: ts })!.otherWallets).toEqual(ts);
+    expect(parseStatus({ ...ready, otherWallets: ts })!.otherWallets).toEqual(
+      ts,
+    );
   });
 
   it('takes the wallet port from the Rock', () => {
-    const s = parseStatus({ ...ready, walletServer: { open: true, port: 18137 } })!;
+    const s = parseStatus({
+      ...ready,
+      walletServer: { open: true, port: 18137 },
+    })!;
     expect(s.walletServer.port).toBe(18137);
   });
 
@@ -161,6 +167,60 @@ describe('the one address for every wallet', () => {
     ];
     for (const b of bad) expect(parseOtherWallets(b)).toBeNull();
     expect(parseOtherWallets(ts)).toEqual(ts);
+  });
+});
+
+describe('the main screen', () => {
+  it('says synced with the block, peers and shielded share', () => {
+    const h = hero(parseStatus(ready));
+    expect(h).toMatchObject({
+      plate: 'SYNCED',
+      value: '3,520,104',
+      unit: 'block',
+      line: 'Checked by you · 8 peers',
+      accent: '33% shielded',
+      rest: ' · Private node',
+      progress: 1,
+      status: 'Synced',
+      tone: 'ok',
+    });
+  });
+
+  it('shows the sync as a percentage and the ring follows it', () => {
+    const h = hero(
+      parseStatus({
+        ...ready,
+        phase: 'syncing',
+        node: { ...ready.node, height: 1480000, progress: 0.42099 },
+      }),
+    );
+    expect(h).toMatchObject({
+      plate: 'SYNCING',
+      value: '42.0%',
+      unit: 'synced',
+      line: 'Block 1,480,000 of 3,520,104',
+      status: 'Syncing',
+      tone: 'busy',
+    });
+    expect(h.progress).toBeCloseTo(0.42099);
+  });
+
+  it('is calm while looking and dull when out of reach', () => {
+    expect(hero(null)).toMatchObject({ plate: 'LOOKING', tone: 'busy' });
+    expect(hero(null, true)).toMatchObject({
+      plate: 'OFFLINE',
+      status: 'Out of reach',
+      tone: 'off',
+      progress: 0,
+    });
+  });
+
+  it('keeps every plate word short enough for the coin', () => {
+    const words = [hero(null).plate, hero(null, true).plate];
+    for (const phase of ['starting', 'syncing', 'opening', 'ready']) {
+      words.push(hero(parseStatus({ ...ready, phase })).plate);
+    }
+    for (const w of words) expect(w.length).toBeLessThanOrEqual(8);
   });
 });
 
@@ -249,6 +309,54 @@ describe('pairing', () => {
     expect(cleanCode(' K7QM 3XPA ')).toBe('K7QM3XPA');
     expect(cleanCode('K7QM3XP')).toBeNull();
     expect(cleanCode('K7QM3XP0')).toBeNull(); // no zero in codes
+  });
+
+  it('reads the home address next to a Tailscale name', () => {
+    const ts = 'rockit.tail1234.ts.net';
+    expect(
+      parsePairLink(
+        `rockit://pair?h=${ts}&l=192.168.1.20&c=K7QM3XPA&t=8139&k=${PIN}`,
+      ),
+    ).toEqual({
+      address: { host: ts, port: 8139 },
+      home: { host: '192.168.1.20', port: 8139 },
+      code: 'K7QM3XPA',
+      pin: PIN,
+    });
+    // Never a public or a second Tailscale address as "home".
+    for (const l of ['8.8.8.8', 'evil.example.com', '100.101.102.103']) {
+      expect(
+        parsePairLink(`rockit://pair?h=${ts}&l=${l}&c=K7QM3XPA`),
+      ).toBeNull();
+    }
+  });
+
+  it('pairs at home first, then through Tailscale', async () => {
+    const home = { host: '192.168.1.20', port: 8139 };
+    const away = { host: 'rockit.tail1234.ts.net', port: 8139 };
+    const ok = { deviceId: 'd1', key: 'k', pin: PIN };
+    const tried: string[] = [];
+    const homeOff = async (a: { host: string }) => {
+      tried.push(a.host);
+      if (a.host === home.host) {
+        throw new RockError('No answer', 'unreachable');
+      }
+      return ok;
+    };
+    const r = await pairFirst([home, away], 'K7QM3XPA', 'x', PIN, homeOff);
+    expect(r.via).toEqual(away);
+    expect(tried).toEqual([home.host, away.host]);
+
+    // A wrong code stops at once: no second try on the other address.
+    tried.length = 0;
+    const wrong = async (a: { host: string }) => {
+      tried.push(a.host);
+      throw new RockError('wrong', 'code');
+    };
+    await expect(
+      pairFirst([home, away], 'K7QM3XPA', 'x', PIN, wrong),
+    ).rejects.toMatchObject({ kind: 'code' });
+    expect(tried).toEqual([home.host]);
   });
 
   it('reads the QR link, only for private addresses', () => {

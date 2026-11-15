@@ -5,7 +5,7 @@ import { fonts, makeStyles, space, useColors } from '../theme';
 interface Props {
   label: string;
   onPress: () => void;
-  variant?: 'primary' | 'quiet';
+  variant?: 'primary' | 'quiet' | 'danger';
   busy?: boolean;
   disabled?: boolean;
 }
@@ -29,13 +29,20 @@ export function Button({
       style={({ pressed }) => [
         styles.base,
         primary ? styles.primary : styles.quiet,
+        variant === 'danger' && styles.danger,
         (pressed || disabled) && styles.dim,
       ]}
     >
       {busy ? (
         <ActivityIndicator color={primary ? colors.onGold : colors.gold} />
       ) : (
-        <Text style={[styles.label, !primary && styles.quietLabel]}>
+        <Text
+          style={[
+            styles.label,
+            !primary && styles.quietLabel,
+            variant === 'danger' && styles.dangerLabel,
+          ]}
+        >
           {label}
         </Text>
       )}
@@ -56,4 +63,6 @@ const useStyles = makeStyles(colors => ({
   dim: { opacity: 0.6 },
   label: { fontFamily: fonts.sansSemiBold, fontSize: 16, color: colors.onGold },
   quietLabel: { color: colors.text },
+  danger: { borderColor: colors.danger },
+  dangerLabel: { color: colors.danger },
 }));

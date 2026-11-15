@@ -27,7 +27,8 @@ export interface RockStatus {
 }
 
 /** rockit.tail1234.ts.net, nothing else. */
-const TS_NAME = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.ts\.net$/;
+const TS_NAME =
+  /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.ts\.net$/;
 
 /**
  * Accepts only https://<that same name>.ts.net:<port>, so an odd reply can
@@ -230,4 +231,113 @@ export function tiles(s: RockStatus): Tile[] {
     // Rock it is Private only: it never announces the home IP as a node.
     { title: 'Mode', text: 'Private', subtext: 'node' },
   ];
+}
+
+export interface Hero {
+  /** The word on the coin's plate. */
+  plate: string;
+  /** The big number, and the small word after it. */
+  value: string;
+  unit: string;
+  /** The line under the number. */
+  line: string;
+  /** A second, quieter line; `accent` is the gold part at its start. */
+  accent: string;
+  rest: string;
+  /** 0 to 1 for the ring around the coin. */
+  progress: number;
+  /** The status in the bottom bar. */
+  status: string;
+  tone: 'ok' | 'busy' | 'off';
+}
+
+/**
+ * What the main screen says, in the Lock it layout: a plate on the coin,
+ * one big number and two lines. `s` is null while looking, or when the
+ * Rock can't be reached (`out` true).
+ */
+export function hero(s: RockStatus | null, out = false): Hero {
+  if (s == null) {
+    return out
+      ? {
+          plate: 'OFFLINE',
+          value: '–',
+          unit: '',
+          line: 'Your Rock is out of reach',
+          accent: '',
+          rest: '',
+          progress: 0,
+          status: 'Out of reach',
+          tone: 'off',
+        }
+      : {
+          plate: 'LOOKING',
+          value: '–',
+          unit: '',
+          line: 'Knocking on your Rock',
+          accent: '',
+          rest: '',
+          progress: 0,
+          status: 'Looking…',
+          tone: 'busy',
+        };
+  }
+  const height = s.node.height ?? 0;
+  const estimated = Math.max(s.node.estimatedHeight ?? 0, height);
+  const t = tiles(s);
+  const shielded = t[0].text === '–' ? '' : `${t[0].text} shielded`;
+  const peers = s.node.peers;
+  const peerText = peers == null ? '' : ` · ${fmt(peers)} peers`;
+  switch (s.phase) {
+    case 'starting':
+      return {
+        plate: 'STARTING',
+        value: '–',
+        unit: '',
+        line: 'The node is starting',
+        accent: '',
+        rest: '',
+        progress: 0,
+        status: 'Starting',
+        tone: 'busy',
+      };
+    case 'syncing': {
+      const p = Math.min(Math.max(s.node.progress ?? 0, 0), 1);
+      return {
+        plate: 'SYNCING',
+        value: `${(Math.floor(p * 1000) / 10).toFixed(1)}%`,
+        unit: 'synced',
+        line: `Block ${fmt(height)} of ${fmt(estimated)}`,
+        accent: '',
+        rest: 'Your Rock keeps going when the app is closed',
+        progress: p,
+        status: 'Syncing',
+        tone: 'busy',
+      };
+    }
+    case 'opening':
+      return {
+        plate: 'ALMOST',
+        value: fmt(height),
+        unit: 'block',
+        line: 'Opening the wallet port',
+        accent: '',
+        rest: '',
+        progress: 1,
+        status: 'Almost ready',
+        tone: 'busy',
+      };
+    case 'ready':
+      return {
+        plate: 'SYNCED',
+        value: fmt(height),
+        unit: 'block',
+        line: `Checked by you${peerText}`,
+        accent: shielded,
+        rest: `${shielded ? ' · ' : ''}Private node`,
+        progress: 1,
+        status: 'Synced',
+        tone: 'ok',
+      };
+  }
 }
