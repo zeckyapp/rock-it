@@ -139,3 +139,26 @@ these measurements) and zingolabs/zaino#1673 (tree state by height).
 - Port 8233 (the Zcash peer port) is the web port of Linkwarden, an official
   Umbrel app. Publishing 8233 on the Umbrel would stop Rock it from starting
   next to it, so a Supporter mode needs another public port.
+
+## Zakura 1.8.9: database format 31 (17 November 2026)
+
+- 1.8.9 moves the state database to format 31.0.0 and reuses the existing data
+  in place, but older releases cannot open it afterwards: going back from Rock
+  it 0.3.19 to 0.3.18 would mean a full resync.
+- The official image no longer verifies Sprout JoinSplit proofs (cargo feature
+  `sprout` off). Mainnet checkpoints run to block 3,573,390, past NU7, so a new
+  install still syncs from scratch, because Rock it keeps Zakura's default
+  checkpoint sync. Never set `consensus.checkpoint_sync = false` with this
+  image: Zakura then verifies every pre-NU7 Sprout proof itself, and without
+  `sprout` it stalls at the first such block (seen on the Lock it Windows Go
+  Max node with a source build of 1.8.8 on 17 November 2026).
+- The stop height is unchanged from 1.8.5: block 3,643,309 (about 5 December
+  2026).
+- Checked again on 17 November 2026 before release: no Zakura release after
+  1.8.9; the 1.8.9 tag on Docker Hub still points at the pinned digest, with an
+  arm64 build for the Pi. From NU7 on, transactions must be version 5 or 6, so
+  no block after NU7 can carry a Sprout JoinSplit. Format 31 reuses the data by
+  moving the `v30` state folder to `v31`, so an older Zakura would start a new
+  sync from zero. The RPC calls Zaino and the status page use, the environment
+  settings Rock it sets, and the image's entrypoint are unchanged since 1.8.5;
+  Mainnet still uses legacy TCP only.

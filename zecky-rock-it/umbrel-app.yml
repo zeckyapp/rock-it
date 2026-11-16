@@ -4,8 +4,8 @@ storage:
   dataRoot: data
 category: finance
 name: Zecky Rock it
-version: "0.3.18"
-tagline: Your own Zcash node for Zecky Lock it and Zecky Pocket
+version: "0.3.19"
+tagline: Your own Zcash node for Zecky Lock it and Zecky Flip it
 icon: https://raw.githubusercontent.com/zeckyapp/rock-it/main/status/icon.svg
 description: >-
   Needs about 300 GB of free disk space. The first sync downloads and checks
@@ -13,7 +13,7 @@ description: >-
 
 
   Rock it runs a Zcash node on your Umbrel, with a light-wallet server in front
-  of it. Point Zecky Lock it and Zecky Pocket at it, and your wallets ask your
+  of it. Point Zecky Lock it and Zecky Flip it at it, and your wallets ask your
   own node about the chain instead of someone else's server.
 
 
@@ -29,6 +29,11 @@ description: >-
   server by Zingo Labs), with two small Rock it patches for speed on a
   Raspberry Pi.
 releaseNotes: >-
+  0.3.19: Zakura 1.8.9: stricter limits on misbehaving peers, fixes where the
+  node could stop by mistake, and less CPU use. Your node upgrades its data in
+  place, so there is no new sync.
+
+
   0.3.18: Rock it now keeps about 24 peers instead of up to 150, so other
   Zcash nodes in your home, like Go Max in Zecky Lock it, can connect too.
   Your node stays in sync the same way.
