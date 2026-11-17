@@ -4,7 +4,7 @@ storage:
   dataRoot: data
 category: finance
 name: Zecky Rock it
-version: "0.3.19"
+version: "0.3.20"
 tagline: Your own Zcash node for Zecky Lock it and Zecky Flip it
 icon: https://raw.githubusercontent.com/zeckyapp/rock-it/main/status/icon.svg
 description: >-
@@ -29,6 +29,13 @@ description: >-
   server by Zingo Labs), with two small Rock it patches for speed on a
   Raspberry Pi.
 releaseNotes: >-
+  0.3.20: a new look. Your node's page shows a turning planet (Earth, Mars
+  or the Moon) with the transactions of each new block coming in, the latest
+  blocks and how many were shielded, the shielded share of all ZEC, and when
+  your node needs its next update. Setting up wallets and the Rock it app is
+  now under Settings.
+
+
   0.3.19: Zakura 1.8.9: stricter limits on misbehaving peers, fixes where the
   node could stop by mistake, and less CPU use. Your node upgrades its data in
   place, so there is no new sync.

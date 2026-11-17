@@ -11,7 +11,7 @@ services:
   # Status and connection page (the app's web UI and home-screen widget).
   status:
     # The digest pins the exact build (the Status image workflow reports it).
-    image: ghcr.io/zeckyapp/rockit-status:0.3.12@sha256:c0410c9ab3ce23b628a3b0a0c21f602d016462c34029a2e6ace1ead1ad7ea1ae
+    image: ghcr.io/zeckyapp/rockit-status:0.3.13@sha256:88595fe9b86c3568ce2fef7fb4fbcef4014e4fafe1043ccfcdd0bee27224461d
     # Starts as root only to give its data folder to user 1000 (Docker makes a
     # missing folder owned by root), then drops to 1000 before serving.
     user: "0:0"
@@ -21,6 +21,9 @@ services:
       ZAINO_ADDR: "${APP_ZECKY_ROCK_IT_ZAINO_IP}:${APP_ZECKY_ROCK_IT_WALLET_PORT}"
       WALLET_PORT: "${APP_ZECKY_ROCK_IT_WALLET_PORT}"
       APP_VERSION: "${APP_VERSION}"
+      # The block where the Zakura release below stops. Update it with the
+      # node image; the page shows when the next node update is due.
+      ZAKURA_STOP_HEIGHT: "3643309"
       DATA_DIR: /chain
       PAIR_DIR: /data
       TLS_PORT: "${APP_ZECKY_ROCK_IT_PHONE_PORT}"
@@ -55,7 +58,8 @@ services:
   # The Zcash node.
   # The tag says the version; the digest pins the exact multi-platform build.
   # Zakura releases stop themselves at a set height, so this must be updated
-  # before each one expires (1.8.9: block 3,643,309, about 5 December 2026).
+  # before each one expires (1.8.9: block 3,643,309, about 5 December 2026),
+  # together with ZAKURA_STOP_HEIGHT under status.
   # Runs as root at first: its entrypoint gives the data folder to its own
   # user (10001) and then drops to that user.
   # Runs once at every start, before the node and Zaino, then stops. Docker
@@ -64,7 +68,7 @@ services:
   # (so a synced chain is never walked through again). Same image as the
   # status page, so nothing extra is downloaded; no network.
   prepare:
-    image: ghcr.io/zeckyapp/rockit-status:0.3.12@sha256:c0410c9ab3ce23b628a3b0a0c21f602d016462c34029a2e6ace1ead1ad7ea1ae
+    image: ghcr.io/zeckyapp/rockit-status:0.3.13@sha256:88595fe9b86c3568ce2fef7fb4fbcef4014e4fafe1043ccfcdd0bee27224461d
     user: "0:0"
     restart: "no"
     network_mode: none
