@@ -114,6 +114,8 @@ class WidgetTest(unittest.TestCase):
         # sprout + sapling + orchard + ironwood; not transparent or lockbox.
         self.assertEqual(p["shieldedZat"], 496315464372332)
         self.assertEqual(p["totalZat"], sum(x["chainValueZat"] for x in POOLS))
+        self.assertEqual(sorted(p["byPool"]), ["ironwood", "orchard", "sapling", "sprout"])
+        self.assertEqual(sum(p["byPool"].values()), p["shieldedZat"])
         self.assertIsNone(server.pools(None))
         self.assertIsNone(server.pools([{"id": "sapling"}]))
 
@@ -139,6 +141,100 @@ class WidgetTest(unittest.TestCase):
         self.fake("starting")
         tiles = {i["title"]: i["text"] for i in server.widget_stats()["items"]}
         self.assertEqual((tiles["Shielded"], tiles["Network"], tiles["Wallets"]), ("–", "–", "Not ready"))
+
+
+class NetworkTest(unittest.TestCase):
+    """The page's cards: block counts, peer software and the update date."""
+
+    def setUp(self):
+        self.saved = (server.status, server.rpc, server.ZAKURA_STOP_HEIGHT)
+        server._blocks.clear()
+        server._net_cache.update(at=0.0, value=None)
+
+    def tearDown(self):
+        server.status, server.rpc, server.ZAKURA_STOP_HEIGHT = self.saved
+        server._blocks.clear()
+        server._net_cache.update(at=0.0, value=None)
+
+    def test_what_counts_as_shielded(self):
+        kind = server.tx_kind
+        t_in = [{"txid": "aa", "vout": 0}]
+        t_out = [{"valueZat": 5}]
+        orchard = lambda bal: {"actions": [{}], "valueBalanceZat": bal}
+        self.assertEqual(kind({"vin": [{"coinbase": "03"}], "vout": t_out}), "coinbase")
+        # Fully shielded: nothing transparent in or out.
+        self.assertEqual(kind({"vin": [], "vout": [], "orchard": orchard(10000)}), "shielded")
+        self.assertEqual(kind({"vShieldedSpend": [{}], "vShieldedOutput": [{}], "valueBalanceZat": 10000}), "shielded")
+        self.assertEqual(kind({"ironwood": orchard(10000)}), "shielded")
+        # Transparent into a shielded pool (with change) counts.
+        self.assertEqual(kind({"vin": t_in, "vout": t_out, "orchard": orchard(-500000)}), "shielded")
+        self.assertEqual(kind({"vin": t_in, "vShieldedOutput": [{}], "valueBalanceZat": -500000}), "shielded")
+        # Out of a shielded pool to a transparent address does not.
+        self.assertEqual(kind({"vin": [], "vout": t_out, "orchard": orchard(500000)}), "transparent")
+        # Plain transparent, and transparent with an empty Orchard bundle.
+        self.assertEqual(kind({"vin": t_in, "vout": t_out}), "transparent")
+        self.assertEqual(kind({"vin": t_in, "vout": t_out, "orchard": {"actions": [], "valueBalanceZat": 0}}), "transparent")
+        # Odd values do not break it.
+        self.assertEqual(kind({"vin": t_in, "orchard": {"actions": [{}], "valueBalanceZat": "x"}}), "transparent")
+
+    def test_software_names_only(self):
+        self.assertEqual(server.software("/Zakura:1.8.9/"), "Zakura 1.8")
+        self.assertEqual(server.software("/MagicBean:6.2.0/"), "zcashd 6.2")
+        self.assertEqual(server.software("/Zebra:2.5.0(rc1)/"), "Zebra 2.5")
+        self.assertEqual(server.software(None), "Unknown")
+        self.assertEqual(server.software("/<script>:1.0/"), "script 1.0")
+        peers = [{"addr": "203.0.113.%d:8233" % i, "subver": s} for i, s in enumerate(
+            ["/Zakura:1.8.9/"] * 5 + ["/Zebra:2.5.0/"] * 3 + ["/MagicBean:6.2.0/"] * 2 + ["/A:1/", "/B:1/"])]
+        listed = server.peer_software(peers)
+        self.assertEqual(listed, [
+            {"name": "Zakura 1.8", "count": 5}, {"name": "Zebra 2.5", "count": 3},
+            {"name": "zcashd 6.2", "count": 2}, {"name": "Other", "count": 2}])
+        self.assertNotIn("203.0.113", json.dumps(listed))
+
+    def test_network_card_data(self):
+        calls = []
+
+        def fake_rpc(method, params=None, timeout=4):
+            calls.append((method, params))
+            if method == "getinfo":
+                return {"subversion": "/Zakura:1.8.9/"}
+            if method == "getpeerinfo":
+                return [{"addr": "198.51.100.7:8233", "subver": "/Zakura:1.8.9/"}]
+            if method == "getblock":
+                h = int(params[0])
+                return {"time": h, "tx": [
+                    {"vin": [{"coinbase": "03"}], "vout": [{}]},
+                    {"orchard": {"actions": [{}], "valueBalanceZat": 1000}},
+                    {"vin": [{"txid": "a"}], "vout": [{}]}]}
+            raise AssertionError(method)
+
+        server.rpc = fake_rpc
+        server.ZAKURA_STOP_HEIGHT = 3_643_309
+        server.status = lambda: {"phase": "ready", "node": {"reachable": True, "height": 3_584_029}}
+        v = server.network()
+        self.assertEqual(v["node"], "Zakura 1.8")
+        self.assertEqual(v["peers"], [{"name": "Zakura 1.8", "count": 1}])
+        self.assertNotIn("198.51.100", json.dumps(v))
+        self.assertEqual([b["height"] for b in v["blocks"]], list(range(3_584_014, 3_584_030)))
+        self.assertEqual((v["blocks"][-1]["tx"], v["blocks"][-1]["shielded"]), (2, 1))
+        self.assertEqual(v["update"]["blocksLeft"], 3_643_309 - 3_584_029)
+        # A new block: only that one is fetched; the oldest is dropped.
+        server._net_cache.update(at=0.0, value=None)
+        calls.clear()
+        server.status = lambda: {"phase": "ready", "node": {"reachable": True, "height": 3_584_030}}
+        v = server.network()
+        self.assertEqual([c for c in calls if c[0] == "getblock"], [("getblock", ["3584030", 2])])
+        self.assertEqual(v["blocks"][0]["height"], 3_584_015)
+        self.assertEqual(len(server._blocks), server.BLOCKS_SHOWN)
+
+    def test_no_blocks_while_syncing_and_nothing_when_down(self):
+        server.rpc = lambda method, params=None, timeout=4: [] if method == "getpeerinfo" else {}
+        server.status = lambda: {"phase": "syncing", "node": {"reachable": True, "height": 1_000}}
+        self.assertEqual(server.network()["blocks"], [])
+        server._net_cache.update(at=0.0, value=None)
+        server.status = lambda: {"phase": "starting", "node": {"reachable": False}}
+        v = server.network()
+        self.assertEqual((v["node"], v["peers"], v["blocks"], v["update"]), (None, [], [], None))
 
 
 class LimitTest(unittest.TestCase):
@@ -492,7 +588,7 @@ class HttpTest(unittest.TestCase):
         saved = server.PAGE_CLIENTS
         server.PAGE_CLIENTS = frozenset({"10.21.0.1"})
         try:
-            for path in ("/", "/api/status", "/api/widget", "/api/pairing"):
+            for path in ("/", "/api/status", "/api/network", "/api/widget", "/api/pairing"):
                 self.assertEqual(self.call(self.page_url + path)[0], 403, path)
             rock = {"X-Rock-It": "1"}
             for path in ("/api/pairing/new", "/api/devices/remove"):
@@ -501,6 +597,23 @@ class HttpTest(unittest.TestCase):
                 )
         finally:
             server.PAGE_CLIENTS = saved
+
+    def test_static_files(self):
+        for path, ctype in (("/planet.js", "text/javascript"), ("/fonts/inter-400.woff2", "font/woff2")):
+            with urllib.request.urlopen(self.page_url + path) as r:
+                self.assertEqual(r.status, 200)
+                self.assertTrue(r.headers["Content-Type"].startswith(ctype))
+        for path in ("/fonts/../server.py", "/fonts/OFL-Inter.txt", "/server.py"):
+            with self.assertRaises(urllib.error.HTTPError) as e:
+                urllib.request.urlopen(self.page_url + path)
+            self.assertEqual(e.exception.code, 404, path)
+
+    def test_network_route_and_not_over_https(self):
+        status, body = self.call(self.page_url + "/api/network")
+        self.assertEqual((status, body["blocks"], body["peers"]), (200, [], []))
+        with self.assertRaises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(self.phone_url + "/api/network", context=self.ctx)
+        self.assertEqual(e.exception.code, 404)
 
     def test_phone_port_is_not_limited_to_the_host(self):
         saved = server.PAGE_CLIENTS

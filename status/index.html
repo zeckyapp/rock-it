@@ -4,219 +4,229 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Zecky Rock it</title>
-<meta name="theme-color" content="#14161C">
+<meta name="theme-color" content="#111318">
 <meta name="referrer" content="no-referrer">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <script src="qr.js"></script>
 <style>
-/* Same family look as Zecky Lock it: ink, warm gold, a serif for the big
-   words, a mark on a guilloché rosette, a quiet top and the rest folded away.
-   No web fonts and nothing loaded from elsewhere: the page stays local. */
-:root{--ink:#14161C;--card:#1A1D24;--gold:#D4A657;--gold-hi:#E6C07E;--paper:#ECE8DF;--muted:#9A9DA6;--faint:#80838C;--line:#262932;--ok:#8FBF8A}
+/* Zecky's look: ink, warm gold, a serif for the big words. A planet with a
+   ring of incoming transactions on top, three small cards beside it, and
+   everything to set up in one Settings panel. The fonts are served by Rock
+   it itself: nothing is loaded from elsewhere. */
+@font-face{font-family:Inter;font-weight:400;font-display:swap;src:url(fonts/inter-400.woff2) format("woff2")}
+@font-face{font-family:Inter;font-weight:500;font-display:swap;src:url(fonts/inter-500.woff2) format("woff2")}
+@font-face{font-family:Inter;font-weight:600;font-display:swap;src:url(fonts/inter-600.woff2) format("woff2")}
+@font-face{font-family:Newsreader;font-weight:300;font-display:swap;src:url(fonts/newsreader-300.woff2) format("woff2")}
+@font-face{font-family:Newsreader;font-weight:400;font-display:swap;src:url(fonts/newsreader-400.woff2) format("woff2")}
+:root{--bg:#111318;--bg2:#1A1714;--card:#191C23;--line:#262A33;--fg:#ECE8DF;--muted:#9A9DA6;--faint:#80838C;--gold:#D4A657;--gold-hi:#E6C07E;--gold-lo:#EBD3A2;--brass:#A97B2E;--grey:#4C505B;--ok:#8FBF8A;--warn:#E3A86B;--sheet:rgba(8,9,12,.72)}
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--ink);color:var(--paper)}
-body{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;line-height:1.55}
-.serif{font-family:Newsreader,"Iowan Old Style",Georgia,"Times New Roman",serif}
+html,body{margin:0;background:var(--bg);color:var(--fg)}
+body{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5}
+.serif,h1,h2,h3{font-family:Newsreader,"Iowan Old Style",Georgia,serif;font-weight:400}
 code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-.page{max-width:560px;margin:0 auto;padding:28px 16px 56px;display:flex;flex-direction:column;gap:22px}
-header{display:flex;align-items:center;gap:10px;font-size:20px}
-header small{margin-left:auto;font-family:Inter,system-ui,sans-serif;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint)}
-
-.rock{position:relative;width:min(300px,78vw);aspect-ratio:1;margin:8px auto 0}
-.rock svg{position:absolute;inset:0;width:100%;height:100%}
-.rosette{opacity:.55}
-.glow{position:absolute;inset:18%;border-radius:50%;background:radial-gradient(circle,rgba(212,166,87,.18),transparent 70%);filter:blur(6px)}
-#arc{transition:stroke-dashoffset .8s ease}
-@media (prefers-reduced-motion:no-preference){.rosette{animation:turn 240s linear infinite;transform-origin:50% 50%}@keyframes turn{to{transform:rotate(360deg)}}}
-
-.hero{text-align:center;display:flex;flex-direction:column;gap:6px;margin-top:-6px}
-.hero h1{margin:0;font-weight:300;font-size:clamp(42px,11vw,56px);line-height:1.05;letter-spacing:-.02em}
-.hero h1 span{color:var(--gold)}
-.hero p{margin:0 auto;color:var(--muted);max-width:30rem}
-.facts{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--faint);min-height:20px}
-.facts b{color:var(--paper);font-weight:500}
-.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--faint);margin-right:7px;vertical-align:1px}
-.dot.on{background:var(--ok)}
-.dot.wait{background:var(--gold)}
-
-.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px}
-.card h2{margin:0 0 4px;font-family:Newsreader,"Iowan Old Style",Georgia,serif;font-weight:400;font-size:24px}
-.lede{margin:0 0 16px;color:var(--muted);font-size:15px}
-.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
-.step{display:grid;grid-template-columns:32px 1fr;gap:12px;padding:14px 0;border-top:1px solid var(--line)}
-.step:first-child{border-top:0;padding-top:4px}
-.step>div:last-child{min-width:0}
-.num{width:28px;height:28px;border-radius:50%;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--muted)}
-.step.done .num{border-color:var(--ok);color:var(--ok)}
-.step.now .num{border-color:var(--gold);color:var(--gold)}
-.step h3{margin:3px 0 0;font-size:16px;font-weight:500}
-.step.done h3{color:var(--muted);font-weight:400}
-.step.later h3{color:var(--faint);font-weight:400}
-.step .body{margin-top:8px;color:var(--muted);font-size:14px;display:flex;flex-direction:column;gap:10px}
-.step.done .body,.step.later .body{display:none}
-.step .body p{margin:0}
-
-button,.btn{display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 22px;border:0;border-radius:99px;background:var(--gold);color:var(--ink);font:inherit;font-size:15px;font-weight:600;text-decoration:none;cursor:pointer;align-self:flex-start}
-button:hover,.btn:hover{background:var(--gold-hi)}
-button:focus-visible,.btn:focus-visible,summary:focus-visible{outline:2px solid var(--gold-hi);outline-offset:3px}
-button.quiet{height:36px;padding:0 16px;border:1px solid var(--line);background:transparent;color:var(--gold);font-size:13px;font-weight:500}
-button.quiet:hover{background:var(--line)}
-button:disabled{opacity:.5;cursor:default}
-.actions{display:flex;gap:8px;flex-wrap:wrap}
-.addr{display:flex;align-items:center;gap:10px;background:var(--ink);border:1px solid var(--line);border-radius:14px;padding:8px 8px 8px 14px}
-.addr code{flex:1;min-width:0;overflow-wrap:anywhere;color:var(--gold-hi);font-size:15px}
-.apps{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px;margin:0}
-.apps dt{color:var(--paper)}
-.apps dd{margin:0;color:var(--muted);overflow-wrap:anywhere}
-.apps code{color:var(--gold-hi)}
-.pair{display:flex;gap:16px;align-items:center}
-.qr{background:var(--paper);border-radius:12px;padding:10px;width:140px;height:140px;display:flex;align-items:center;justify-content:center;flex:none}
-.qr svg{width:120px;height:120px;display:block}
-.code{font-size:26px;letter-spacing:.14em;color:var(--gold-hi);margin:4px 0 !important}
-.small{font-size:13px;color:var(--faint)}
-.calm{border-left:2px solid var(--gold);padding:2px 0 2px 12px;font-size:14px;color:var(--muted)}
-.calm strong{color:var(--paper);font-weight:500}
-@media (max-width:480px){.pair{flex-direction:column;align-items:flex-start}.apps{grid-template-columns:1fr;gap:0}.apps dd{margin-bottom:8px}}
-
-details{border-top:1px solid var(--line);padding-top:14px;margin-top:14px}
-details:first-child{border-top:0;padding-top:0;margin-top:0}
-summary{cursor:pointer;color:var(--gold);font-size:14px;list-style:none}
-summary::-webkit-details-marker{display:none}
-summary::after{content:" \203A"}
-details[open] summary::after{content:" \2304"}
-details>.inner{margin-top:14px;display:flex;flex-direction:column;gap:10px;font-size:14px;color:var(--muted)}
-details>.inner p{margin:0}
-.rows{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;margin:0;font-size:14px}
-.rows dt{color:var(--faint)}
-.rows dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;color:var(--paper)}
-.devices{list-style:none;margin:0;padding:0}
-.devices li{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);color:var(--paper)}
-.devices li:first-child{border-top:0;padding-top:0}
-.devices li span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.devices small{color:var(--faint)}
-.sub{margin:6px 0 0;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+button,.btn{font:inherit}
 a{color:var(--gold-hi)}
-footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--faint);border-top:1px solid var(--line);padding-top:14px}
+[hidden]{display:none!important}
+
+.app{max-width:1280px;margin:0 auto;padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:center;gap:12px}
+header>svg{flex:none}
+header .name{font-size:22px;line-height:1.1;white-space:nowrap}
+header .subt{display:block;font-size:13px;color:var(--faint);margin-top:2px}
+.right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.pill{height:36px;padding:0 14px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--fg);font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;text-decoration:none}
+.pill:hover{border-color:var(--gold)}
+.pill.gold{background:var(--gold);border-color:var(--gold);color:#1A1408;font-weight:500}
+.pill:disabled{opacity:.5;cursor:default}
+.planets{display:inline-flex;padding:3px;border-radius:99px;border:1px solid var(--line);background:var(--card)}
+.planets button{height:28px;padding:0 12px;border:0;border-radius:99px;background:transparent;color:var(--muted);font-size:12px;cursor:pointer}
+.planets button[aria-pressed=true]{background:var(--bg2);color:var(--fg)}
+
+main{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px}
+@media (min-width:900px) and (min-height:600px){html,body{height:100%;overflow:hidden}.app{height:100dvh}main{flex:1;min-height:0}.stage{min-height:0}.side{min-height:0;overflow:auto}}
+@media (max-width:899px){main{grid-template-columns:1fr}.stage{aspect-ratio:4/5}}
+
+.stage{position:relative;border-radius:28px;overflow:hidden;background:radial-gradient(90% 80% at 50% 45%,var(--bg2) 0%,var(--bg) 75%);border:1px solid var(--line);min-height:380px}
+canvas{position:absolute;inset:0;width:100%;height:100%}
+.tl{position:absolute;left:22px;top:18px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px}
+.live{width:7px;height:7px;border-radius:50%;background:var(--grey)}
+.live.on{background:var(--ok);animation:live 2.4s infinite}
+@keyframes live{0%{box-shadow:0 0 0 0 rgba(143,191,138,.5)}70%{box-shadow:0 0 0 10px rgba(143,191,138,0)}100%{box-shadow:0 0 0 0 rgba(143,191,138,0)}}
+.tr{position:absolute;right:22px;top:18px;font-size:12px;color:var(--faint);text-align:right;max-width:230px}
+.egg{position:absolute;left:50%;top:18px;transform:translateX(-50%);font-size:12px;color:var(--faint);opacity:0;transition:opacity 1.2s;pointer-events:none;white-space:nowrap}
+.egg.on{opacity:1}
+.bl{position:absolute;left:22px;bottom:18px;right:22px;pointer-events:none}
+.bl>*{pointer-events:auto}
+h1{margin:0;font-weight:300;font-size:46px;line-height:1}
+h1 i{font-style:normal;color:var(--gold);cursor:default}
+.bl .sub{margin:6px 0 0;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;max-width:520px}
+.next{margin-top:12px}
+.br{position:absolute;right:22px;bottom:18px;display:flex;gap:16px;font-size:12px;color:var(--faint)}
+.br i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px}
+@media (max-width:640px){.tr,.br{display:none}h1{font-size:34px}header .subt{display:none}.planets button{padding:0 9px}.egg{top:46px}header .name{font-size:18px}.right{gap:6px}.pill{padding:0 11px}}
+
+.side{display:flex;flex-direction:column;gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 16px}
+.ct{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:10px}
+.ct h2{margin:0;font-size:18px}
+.ct .note{font-size:12px;color:var(--faint);text-align:right}
+.empty{font-size:13px;color:var(--faint);margin:4px 0 2px}
+.bars{display:flex;align-items:flex-end;gap:4px;height:70px}
+.bar{flex:1;display:flex;flex-direction:column-reverse;border-radius:3px;overflow:hidden;min-height:3px;background:var(--line)}
+.bar .s{background:var(--gold)}.bar .t{background:var(--grey)}
+.bar.new{animation:pop .7s ease;transform-origin:bottom}
+@keyframes pop{from{transform:scaleY(.2);opacity:.2}to{transform:none;opacity:1}}
+.axis{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--faint);margin-top:8px}
+.axis b{color:var(--gold);font-weight:500}
+.donutrow{display:flex;align-items:center;gap:16px}
+.donut{width:86px;height:86px;flex:none}
+.kv{list-style:none;margin:0;padding:0;flex:1;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)}
+.kv li{display:flex;align-items:center;gap:8px}.kv i{width:8px;height:8px;border-radius:2px;flex:none}.kv b{margin-left:auto;color:var(--fg);font-weight:500;font-variant-numeric:tabular-nums}
+.row{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);padding:7px 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0;padding-top:0}
+.row b{margin-left:auto;color:var(--fg);font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
+.row .mix:not([hidden])+b{margin-left:0}
+b.ok{color:var(--ok)!important}b.warn{color:var(--warn)!important}
+.mix{display:flex;height:6px;width:110px;border-radius:99px;overflow:hidden;gap:2px;margin-left:auto}
+.foot{display:flex;justify-content:space-between;font-size:11px;color:var(--faint);margin-top:auto;padding:0 4px}
+
+/* Settings: a panel from the right */
+.sheet{position:fixed;inset:0;background:var(--sheet);opacity:0;pointer-events:none;transition:opacity .3s;z-index:10}
+.sheet.on{opacity:1;pointer-events:auto}
+.panel{position:absolute;right:0;top:0;bottom:0;width:min(460px,100%);background:var(--bg);border-left:1px solid var(--line);padding:22px;overflow:auto;transform:translateX(100%);transition:transform .35s ease}
+.sheet.on .panel{transform:none}
+.panel h2{margin:0;font-size:26px}
+.group{margin-top:22px;scroll-margin-top:12px}
+.group>h3{font-family:Inter,system-ui,sans-serif;font-size:12px;font-weight:500;letter-spacing:.08em;color:var(--faint);margin:0 0 6px 4px;text-transform:uppercase}
+.box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;font-size:14px}
+.box p{margin:0 0 10px}.box p:last-child{margin-bottom:0}
+.small{font-size:12px;color:var(--faint)}
+.calm{font-size:13px;color:var(--muted)}
+.addr{display:flex;align-items:center;gap:10px;margin:0 0 10px}
+.addr code{flex:1;min-width:0;overflow-wrap:anywhere;color:var(--gold-hi);font-size:13px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.pair{display:flex;gap:14px;align-items:center;margin-bottom:8px}
+.qr{width:132px;height:132px;flex:none;background:#fff;border-radius:10px;padding:8px}
+.qr svg{width:100%;height:100%;display:block}
+.code{font-size:22px;letter-spacing:.08em;color:var(--gold-hi);margin:4px 0}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.list li:first-child{border-top:0;padding-top:0}
+.list li span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.list small{color:var(--faint)}
+.info{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+.info:first-child{border-top:0;padding-top:0}
+.info b{color:var(--fg);font-weight:500;text-align:right}
+dl.apps{margin:8px 0;font-size:13px}dl.apps dt{color:var(--fg);font-weight:500}dl.apps dd{margin:0 0 6px;color:var(--muted)}
+.dotw{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--warn);margin-right:8px;vertical-align:1px}
 </style>
 </head>
 <body>
-<div class="page">
-  <header class="serif">
-    <svg width="18" height="24" viewBox="0 0 40 52" fill="none" aria-hidden="true"><path d="M9 7H31L9 39H31" stroke="#D4A657" stroke-width="4" stroke-linecap="square"/><path d="M14 48H26" stroke="#D4A657" stroke-width="3" stroke-linecap="round"/></svg>
-    Zecky Rock it <small>Your own node</small>
+<div class="app">
+  <header>
+    <svg width="20" height="26" viewBox="0 0 40 52" fill="none" aria-hidden="true"><path d="M9 7H31L9 39H31" stroke="#D4A657" stroke-width="4" stroke-linecap="square"/><path d="M14 48H26" stroke="#D4A657" stroke-width="3" stroke-linecap="round"/></svg>
+    <div><span class="name serif">Zecky Rock it</span><span class="subt" id="nodename">Your own Zcash node</span></div>
+    <div class="right">
+      <div class="planets" role="group" aria-label="Planet"><button type="button" data-p="earth" aria-pressed="true">Earth</button><button type="button" data-p="mars" aria-pressed="false">Mars</button><button type="button" data-p="moon" aria-pressed="false">Moon</button></div>
+      <button type="button" class="pill" id="open">Settings</button>
+    </div>
   </header>
 
-  <!-- The Rock it mark on a guilloché rosette. The ring fills as the node syncs. -->
-  <div class="rock" aria-hidden="true">
-    <div class="glow"></div>
-    <svg class="rosette" viewBox="0 0 300 300" id="rosette"></svg>
-    <svg viewBox="0 0 300 300">
-      <circle cx="150" cy="150" r="92" fill="#16181F" stroke="#2A2D36" stroke-width="1"/>
-      <circle cx="150" cy="150" r="104" fill="none" stroke="#262932" stroke-width="6"/>
-      <circle id="arc" cx="150" cy="150" r="104" fill="none" stroke="#D4A657" stroke-width="6" stroke-linecap="round" stroke-dasharray="653.5" stroke-dashoffset="653.5" transform="rotate(-90 150 150)"/>
-      <g id="peerdots" fill="#D4A657" opacity=".4"><circle cx="150" cy="46" r="5"/><circle cx="240" cy="202" r="5"/><circle cx="60" cy="202" r="5"/></g>
-      <path d="M127 116H173L127 180H173" stroke="#D4A657" stroke-width="9" fill="none" stroke-linecap="square"/>
-      <path d="M137 196H163" stroke="#D4A657" stroke-width="6" stroke-linecap="round"/>
-    </svg>
-  </div>
-
-  <section class="hero" aria-live="polite">
-    <h1 class="serif" id="headline">Starting<span>.</span></h1>
-    <p id="sub">Checking your node…</p>
-  </section>
-  <div class="facts" id="facts"></div>
-
-  <!-- One calm path from install to connected wallets. Done steps fold away. -->
-  <section class="card" id="ow">
-    <h2 id="cardtitle">Getting started</h2>
-    <p class="lede" id="cardlede">Four calm steps. This page keeps track for you.</p>
-    <ol class="steps">
-      <li class="step now" id="s1">
-        <div class="num">1</div>
-        <div><h3>Let your node sync</h3>
-          <div class="body">
-            <p>Your Rock downloads and checks the whole Zcash chain itself. On a Raspberry Pi this takes a few days. You can close this page; it keeps going.</p>
-          </div></div>
-      </li>
-      <li class="step later" id="s2">
-        <div class="num">2</div>
-        <div><h3>Give your Rock a private address</h3>
-          <div class="body" id="ow-body"><p class="small">Loading…</p></div></div>
-      </li>
-      <li class="step later" id="s3">
-        <div class="num">3</div>
-        <div><h3>Add your Rock to your wallets</h3>
-          <div class="body" id="s3-body"></div></div>
-      </li>
-      <li class="step later" id="s4">
-        <div class="num">4</div>
-        <div><h3>Pair the Rock it app</h3>
-          <div class="body" id="pair-on"></div></div>
-      </li>
-    </ol>
-  </section>
-
-  <section class="card">
-    <details id="det">
-      <summary>Details</summary>
-      <div class="inner">
-        <dl class="rows">
-          <dt>Zcash node</dt><dd id="node">–</dd>
-          <dt>Block</dt><dd id="height">–</dd>
-          <dt>Peers</dt><dd id="peers">–</dd>
-          <dt>Wallet server</dt><dd id="wallets">–</dd>
-          <dt>Free disk space</dt><dd id="disk">–</dd>
-          <dt>Privacy</dt><dd id="privacy">–</dd>
-        </dl>
+  <main>
+    <section class="stage">
+      <canvas id="globe" aria-hidden="true"></canvas>
+      <div class="egg" id="egg" aria-hidden="true"></div>
+      <div class="tl"><span class="live" id="live"></span><span id="running">Starting</span></div>
+      <div class="tr">Peer dots land at random places. Rock it never shows where anyone is.</div>
+      <div class="bl" aria-live="polite">
+        <h1 id="headline">Starting<i id="dot">.</i></h1>
+        <p class="sub" id="sub">Checking your node…</p>
+        <div class="next" id="next" hidden><button type="button" class="pill gold" id="nextbtn"></button></div>
       </div>
-    </details>
-    <details id="phones">
-      <summary>Your iPhones</summary>
-      <div class="inner">
-        <ul class="devices" id="devices"></ul>
-        <p class="small">Each iPhone has its own key. Remove one and it can no longer read your Rock.</p>
-      </div>
-    </details>
-    <details id="more" hidden>
-      <summary>Wallet QR code and turning off</summary>
-      <div class="inner" id="ow-foot"></div>
-    </details>
-    <details id="local">
-      <summary>Home Wi-Fi only, without Tailscale</summary>
-      <div class="inner">
-        <p>Zecky Lock it and Pocket can also use this address, only on your home Wi-Fi:</p>
-        <div class="addr"><code id="address">–</code><button type="button" class="quiet" id="copy">Copy</button></div>
-        <p>In the wallet: Settings, Network, Add a server, paste it and tap <em>Check, save and use</em>.</p>
-        <p class="calm"><strong>Only on your own Wi-Fi,</strong> never a guest or public network. It is not encrypted on your home network, and not reachable from the internet. Away from home, use the private address.</p>
-        <p class="calm" id="hostnote" hidden><strong>Use the number, not the name.</strong> Zecky needs your Umbrel's IP address, such as 192.168.1.20. Open this page through that address, or find it in your router or in Umbrel's settings.</p>
-        <p id="localpair" hidden>The Rock it app can pair at home too: type the pairing code in the app with the address <strong class="homehost">your-umbrel-ip</strong>.</p>
-        <div id="pair-off"></div>
-      </div>
-    </details>
-  </section>
+      <div class="br" id="legend" hidden><span><i style="background:var(--gold)"></i>shielded, into the vault</span><span><i style="background:var(--grey)"></i>transparent, stays outside</span></div>
+    </section>
 
-  <!-- The Rock it app's pairing block. Placed in step 4 when the private
-       address is on, and under home Wi-Fi when it is not. -->
-  <div id="pairbox" hidden>
-    <div class="pair">
-      <div class="qr" id="qr" aria-label="Pairing code as a QR code" role="img"></div>
-      <div>
-        <p>Point your iPhone's Camera at this QR code and tap the link. Or type this code in the Rock it app, with the address <strong class="hostonly">your-umbrel-ip</strong>:</p>
-        <p class="code mono" id="code">––––-––––</p>
-        <p class="small" id="expires">&nbsp;</p>
-      </div>
-    </div>
-    <div class="actions"><button type="button" class="quiet" id="newcode">New code</button></div>
-    <p class="small">The code works once, for ten minutes. The QR code carries your Rock's fingerprint, so the app trusts nothing else.</p>
-    <p class="calm" id="notls" hidden><strong>The encrypted connection is not ready.</strong> Restart Zecky Rock it on your Umbrel; the app cannot pair until it is.</p>
-  </div>
-
-  <footer>
-    <span>Zakura node · Zaino wallet server</span>
-    <span id="version"></span>
-  </footer>
+    <aside class="side">
+      <section class="card">
+        <div class="ct"><h2>Latest blocks</h2><span class="note" id="lastblk"></span></div>
+        <div class="bars" id="bars" hidden></div>
+        <div class="axis" id="axis" hidden><span><b id="share">–</b> of transactions shielded</span><span>16 blocks</span></div>
+        <p class="empty" id="noblocks">Shows up once your node is in sync.</p>
+      </section>
+      <section class="card">
+        <div class="ct"><h2>Shielded ZEC</h2><span class="note">counted by your node</span></div>
+        <div class="donutrow" id="supply" hidden>
+          <svg class="donut" viewBox="0 0 86 86" id="donut" role="img" aria-label="Share of all ZEC that is shielded"></svg>
+          <ul class="kv" id="pools"></ul>
+        </div>
+        <p class="empty" id="nosupply">Shows up once your node answers.</p>
+      </section>
+      <section class="card">
+        <div class="ct"><h2>Your node</h2><span class="note" id="nodever"></span></div>
+        <div class="row"><span>Peers</span><div class="mix" id="mix"></div><b id="peers">–</b></div>
+        <div class="row"><span>Wallets</span><b id="wallets">–</b></div>
+        <div class="row"><span>Disk</span><b id="disk">–</b></div>
+        <div class="row"><span>Next node update</span><b id="update">–</b></div>
+      </section>
+      <div class="foot"><span>Free and open source</span><span id="version"></span></div>
+    </aside>
+  </main>
 </div>
 
+<div class="sheet" id="sheet">
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div style="display:flex;align-items:center"><h2 id="settings-title">Settings</h2><button type="button" class="pill" id="close" style="margin-left:auto">Done</button></div>
+
+    <div class="group" id="g-connect"><h3>Private address</h3>
+      <div class="box" id="ow-body"><p class="small">Loading…</p></div>
+    </div>
+
+    <div class="group" id="g-pair"><h3>Pair the Rock it app</h3>
+      <div class="box">
+        <div class="pair">
+          <div class="qr" id="qr" role="img" aria-label="Pairing code as a QR code"></div>
+          <div>
+            <p class="calm">Point your iPhone's Camera at this QR code and tap the link. Or type this code in the Rock it app, with the address <strong class="hostonly">your-umbrel-ip</strong>:</p>
+            <p class="code mono" id="code">––––-––––</p>
+            <p class="small" id="expires">&nbsp;</p>
+          </div>
+        </div>
+        <div class="actions"><button type="button" class="pill" id="newcode">New code</button></div>
+        <p class="small">The code works once, for ten minutes. The QR code carries your Rock's fingerprint, so the app trusts nothing else.</p>
+        <p class="calm" id="notls" hidden><span class="dotw"></span>The encrypted connection is not ready. Restart Zecky Rock it on your Umbrel; the app cannot pair until it is.</p>
+      </div>
+    </div>
+
+    <div class="group"><h3 id="phones-title">Your iPhones</h3>
+      <div class="box">
+        <ul class="list" id="devices"></ul>
+        <p class="small" style="margin-top:10px">Each iPhone has its own key. Remove one and it can no longer read your Rock.</p>
+      </div>
+    </div>
+
+    <div class="group"><h3>Home Wi-Fi only</h3>
+      <div class="box">
+        <p class="calm">Wallets on your home Wi-Fi can also use this address, without Tailscale:</p>
+        <div class="addr"><code id="address">–</code><button type="button" class="pill" id="copy">Copy</button></div>
+        <p class="calm">In Zecky Lock it: Settings, Network, Add a server, paste it and tap <em>Check, save and use</em>.</p>
+        <p class="calm"><strong>Only on your own Wi-Fi,</strong> never a guest or public network. It is not encrypted on your home network, and not reachable from the internet. Away from home, use the private address.</p>
+        <p class="calm" id="hostnote" hidden><strong>Use the number, not the name.</strong> Wallets need your Umbrel's IP address, such as 192.168.1.20. Open this page through that address, or find it in your router or in Umbrel's settings.</p>
+      </div>
+    </div>
+
+    <div class="group"><h3>Node</h3>
+      <div class="box">
+        <div class="info"><span>Software</span><b id="i-node">–</b></div>
+        <div class="info"><span>Peers</span><b>Up to 24, so another Zcash node at home, like Go Max, can connect too</b></div>
+        <div class="info"><span>Mode</span><b id="i-mode">–</b></div>
+        <div class="info"><span>Runs until</span><b id="i-stop">–</b></div>
+        <div class="info"><span>Rock it</span><b id="i-version">–</b></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="planet.js"></script>
 <script>
 (function(){
   var port=8137;
@@ -224,84 +234,175 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-s
   var fmt=function(n){return Number(n).toLocaleString('en-US');};
   var host=location.hostname;
   var isIp=/^\d{1,3}(\.\d{1,3}){3}$/.test(host);
-
-  // Guilloché rosette: rotated ellipses, as behind the lock in Zecky Lock it.
-  (function(){
-    var s='',n=36,i,r;
-    for(i=0;i<n;i++)s+='<ellipse cx="150" cy="150" rx="142" ry="58" fill="none" stroke="#D4A657" stroke-opacity=".16" stroke-width=".7" transform="rotate('+(i*180/n)+' 150 150)"/>';
-    for(r=118;r<=146;r+=7)s+='<circle cx="150" cy="150" r="'+r+'" fill="none" stroke="#D4A657" stroke-opacity=".08" stroke-width=".6"/>';
-    $('rosette').innerHTML=s;
-  })();
-
-  // The Rock's Tailscale name once the private address is on; then
-  // everything, the Rock it app included, connects through it.
-  var tsName='';
-  var synced=false,owState='';
+  function esc(t){return String(t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function each(sel,fn){Array.prototype.forEach.call(document.querySelectorAll(sel),fn);}
-  function pairHost(){return tsName||host;}
-  function showAddress(){
-    var home=isIp?host:'your-umbrel-ip';
-    $('address').textContent=home+':'+port;
-    each('.hostonly',function(el){el.textContent=tsName||home;});
-    each('.homehost',function(el){el.textContent=home;});
-    $('hostnote').hidden=isIp;
-    $('localpair').hidden=!tsName;
+  function post(path,body){
+    return fetch(path,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','X-Rock-It':'1'},body:JSON.stringify(body||{})}).then(function(r){return r.json();});
   }
+  function getJson(path){return fetch(path,{cache:'no-store'}).then(function(r){if(!r.ok)throw r;return r.json();});}
   function copyFrom(code,btn){
     var text=code.textContent;
     var done=function(){btn.textContent='Copied';setTimeout(function(){btn.textContent='Copy';},1500);};
     if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(text).then(done,function(){});}
     else{var r=document.createRange();r.selectNodeContents(code);var s=getSelection();s.removeAllRanges();s.addRange(r);try{document.execCommand('copy');done();}catch(e){}}
   }
-  $('copy').addEventListener('click',function(){copyFrom($('address'),$('copy'));});
-  function dot(cls,text){return '<span class="dot '+cls+'"></span>'+text;}
-  function esc(t){return String(t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
-
-  // Steps: done ones fold away with a tick, the current ones open.
-  function setStep(n,state){
-    var el=$('s'+n);el.className='step '+state;
-    el.querySelector('.num').textContent=state==='done'?'✓':String(n);
+  function qrSvg(text){
+    if(typeof qrcode!=='function')return '';
+    var q=qrcode(0,'M');q.addData(text);q.make();
+    return q.createSvgTag({cellSize:4,margin:0,scalable:true});
   }
-  function steps(){
-    var on=owState==='on';
-    setStep(1,synced?'done':'now');
-    setStep(2,on?'done':(synced?'now':'later'));
-    setStep(3,on&&synced?'now':'later');
-    setStep(4,on?'now':'later');
-    if(synced&&on){$('cardtitle').textContent='Your wallets';$('cardlede').textContent='Everything here runs on your own Umbrel.';}
-    else if(synced){$('cardtitle').textContent='Getting started';$('cardlede').textContent='Your node is in sync. A few more steps and your wallets use it.';}
-    else{$('cardtitle').textContent='Getting started';$('cardlede').textContent='Four calm steps. This page keeps track for you.';}
+
+  // The planet: remembered per browser, if the browser lets us.
+  var store={get:function(k){try{return localStorage.getItem(k);}catch(e){return null;}},set:function(k,v){try{localStorage.setItem(k,v);}catch(e){}}};
+  function pick(name){
+    if(!/^(earth|mars|moon)$/.test(name))name='earth';
+    window.Planet.set(name);
+    each('.planets button',function(b){b.setAttribute('aria-pressed',String(b.getAttribute('data-p')===name));});
+    store.set('rockit-planet',name);
+  }
+  each('.planets button',function(b){b.addEventListener('click',function(){pick(b.getAttribute('data-p'));});});
+  pick(store.get('rockit-planet')||'earth');
+
+  // Settings
+  function openSheet(group){
+    $('sheet').classList.add('on');
+    if(group){var g=$(group);if(g)g.scrollIntoView({block:'start'});}
+  }
+  $('open').addEventListener('click',function(){openSheet();});
+  $('close').addEventListener('click',function(){$('sheet').classList.remove('on');});
+  $('sheet').addEventListener('click',function(e){if(e.target===this)this.classList.remove('on');});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')$('sheet').classList.remove('on');});
+
+  // --- Status ---------------------------------------------------------------
+  var tsName='',owState='',synced=false,devices=0,since=0;
+  function pairHost(){return tsName||host;}
+  function showAddress(){
+    var home=isIp?host:'your-umbrel-ip';
+    $('address').textContent=home+':'+port;
+    each('.hostonly',function(el){el.textContent=tsName||home;});
+    $('hostnote').hidden=isIp;
+  }
+  $('copy').addEventListener('click',function(){copyFrom($('address'),$('copy'));});
+
+  function running(){
+    if(!since)return;
+    var s=Date.now()/1000-since,t;
+    if(s<3600)t='a few minutes';else if(s<86400){var h=Math.floor(s/3600);t=h+(h===1?' hour':' hours');}else{var d=Math.floor(s/86400);t=d+(d===1?' day':' days');}
+    $('running').textContent='Running for '+t;
+  }
+
+  // The one next step, if there is one.
+  function nextStep(){
+    var label='',group='';
+    if(synced&&owState&&owState!=='on'&&owState!=='unavailable'){label=owState==='off'?'Next: give your Rock a private address':'Next: finish the private address';group='g-connect';}
+    else if(synced&&owState==='on'&&!devices){label='Next: pair the Rock it app';group='g-pair';}
+    $('next').hidden=!label;
+    $('nextbtn').textContent=label;
+    $('nextbtn').onclick=function(){openSheet(group);};
   }
 
   function render(s){
     var n=s.node,pct=n.reachable?n.progress*100:0;
     port=s.walletServer.port||port;showAddress();
-    var head,sub,fill;
-    if(s.phase==='starting'){head='Starting';sub='Your Zcash node is starting. This takes a minute.';fill=0;}
-    else if(s.phase==='syncing'){head='Syncing';sub=pct.toFixed(1)+'% · block '+fmt(n.height)+' of about '+fmt(n.estimatedHeight)+'. A few days on a Raspberry Pi.';fill=pct/100;}
-    else if(s.phase==='opening'){head='Almost ready';sub='Your node is in sync. The wallet server is opening.';fill=1;}
-    else{head='Ready';sub='Block '+fmt(n.height)+', checked by you.';fill=1;}
-    $('headline').innerHTML=head+'<span>.</span>';
+    var head,sub;
+    if(s.phase==='starting'){head='Starting';sub='Your Zcash node is starting. This takes a minute.';}
+    else if(s.phase==='syncing'){head='Syncing';sub=pct.toFixed(1)+'% · block '+fmt(n.height)+' of about '+fmt(n.estimatedHeight)+'. A few days on a Raspberry Pi. You can close this page.';}
+    else if(s.phase==='opening'){head='Almost ready';sub='Your node is in sync. The wallet server is opening.';}
+    else{head='In sync';sub='Block '+fmt(n.height)+', checked by you.';}
+    $('headline').firstChild.nodeValue=head;
     $('sub').textContent=sub;
-    $('arc').setAttribute('stroke-dashoffset',String(653.5*(1-Math.max(0,Math.min(1,fill)))));
-    $('peerdots').setAttribute('opacity',n.reachable&&n.peers?'1':'.4');
-    var pv=s.privacy;
-    var facts=[];
-    if(n.reachable&&n.peers!=null)facts.push('<span>'+dot(n.peers?'on':'wait','')+'<b>'+fmt(n.peers)+'</b> peers</span>');
-    if(pv)facts.push('<span>'+(pv.inbound?dot('wait','Open to other nodes'):dot('on','Private'))+'</span>');
-    if(s.disk)facts.push('<span><b>'+fmt(Math.round(s.disk.free/1e9))+' GB</b> free</span>');
-    $('facts').innerHTML=facts.join('');
-    $('node').innerHTML=n.reachable?dot(pct>=99.9?'on':'wait',pct>=99.9?'In sync':'Syncing'):dot('','Starting');
-    $('height').textContent=n.reachable?(fmt(n.height)+(pct<99.9?' of ~'+fmt(n.estimatedHeight):'')):'–';
-    $('peers').textContent=n.reachable&&n.peers!=null?fmt(n.peers):'–';
-    $('wallets').innerHTML=s.walletServer.open?dot('on','Ready on port '+port):dot('wait','Waiting for the node');
-    $('disk').textContent=s.disk?fmt(Math.round(s.disk.free/1e9))+' GB of '+fmt(Math.round(s.disk.total/1e9))+' GB':'–';
-    $('privacy').innerHTML=pv?(pv.inbound?dot('wait','Open to other nodes'):dot('on','Private, connects out only')):'–';
-    $('version').textContent=s.version?'Rock it '+s.version:'';
     synced=s.phase==='ready'||s.phase==='opening';
-    steps();
+    window.Planet.progress(s.phase==='starting'?0:(synced?1:n.progress));
+    window.Planet.peers(n.reachable?(n.peers||0):0);
+    $('live').className='live'+(n.reachable?' on':'');
+    $('legend').hidden=!synced;
+    $('peers').textContent=n.reachable&&n.peers!=null?fmt(n.peers):'–';
+    $('wallets').textContent=s.walletServer.open?'Ready':(synced?'Opening':'After sync');
+    $('wallets').className=s.walletServer.open?'ok':'';
+    $('disk').textContent=s.disk?fmt(Math.round(s.disk.free/1e9))+' GB free':'–';
+    var inbound=s.privacy&&s.privacy.inbound;
+    $('i-mode').textContent=s.privacy?(inbound?'Open to other nodes':'Private, connects out only'):'–';
+    $('version').textContent=s.version?'Rock it '+s.version:'';
+    $('i-version').textContent=s.version||'–';
+    supply(n.reachable&&n.pools);
+    nextStep();
   }
 
+  // Shielded ZEC: the pools, as your node counts them.
+  function supply(p){
+    $('supply').hidden=!p;$('nosupply').hidden=!!p;
+    if(!p)return;
+    var by=p.byPool||{},total=p.totalZat;
+    var rows=[
+      ['Ironwood',by.ironwood||0,'var(--gold)'],
+      ['Orchard',by.orchard||0,'var(--gold-lo)'],
+      ['Sapling and Sprout',(by.sapling||0)+(by.sprout||0),'var(--brass)']
+    ];
+    var shielded=p.shieldedZat/total*100,at=0,arcs='';
+    rows.forEach(function(r){var len=r[1]/total*100;if(len>0)arcs+='<circle cx="43" cy="43" r="35" fill="none" stroke="'+r[2]+'" stroke-width="9" pathLength="100" stroke-dasharray="'+Math.max(0,len-0.6).toFixed(2)+' '+(100-len+0.6).toFixed(2)+'" stroke-dashoffset="'+(-at).toFixed(2)+'" transform="rotate(-90 43 43)"/>';at+=len;});
+    $('donut').innerHTML='<circle cx="43" cy="43" r="35" fill="none" stroke="var(--line)" stroke-width="9"/>'+arcs+
+      '<text x="43" y="49" text-anchor="middle" fill="var(--fg)" font-family="Newsreader,Georgia,serif" font-size="20">'+Math.round(shielded)+'%</text>';
+    var pc=function(z){var v=z/total*100;return (v>0&&v<1?v.toFixed(1):Math.round(v))+'%';};
+    $('pools').innerHTML=rows.map(function(r){return '<li><i style="background:'+r[2]+'"></i>'+r[0]+'<b>'+pc(r[1])+'</b></li>';}).join('')+
+      '<li><i style="background:var(--grey)"></i>Not shielded<b>'+pc(total-p.shieldedZat)+'</b></li>';
+  }
+
+  function tick(){
+    getJson('api/status').then(render)
+      .catch(function(){$('sub').textContent='Rock it is not answering. Trying again…';$('live').className='live';})
+      .then(function(){setTimeout(tick,5000);});
+  }
+
+  // --- The network: blocks, peers' software, the update date ------------------
+  var lastHeight=0,lastBlockTime=0;
+  function renderNetwork(v){
+    since=v.since||since;running();
+    $('nodever').textContent=v.node||'';
+    $('i-node').textContent=v.node||'–';
+    $('nodename').textContent=v.node?v.node+' · your own Zcash node':'Your own Zcash node';
+    // Peers by software: a thin bar, names in its tooltip.
+    var peers=v.peers||[],total=peers.reduce(function(a,p){return a+p.count;},0);
+    var shades=['var(--gold)','var(--brass)','var(--gold-lo)','var(--grey)'];
+    $('mix').innerHTML=peers.map(function(p,i){return '<span style="flex:'+p.count+';background:'+(p.name==='Other'?'var(--grey)':shades[i%3])+'"></span>';}).join('');
+    $('mix').title=peers.map(function(p){return p.name+': '+p.count;}).join(', ');
+    $('mix').hidden=!total;
+    // When this node version stops.
+    var u=v.update;
+    if(u){
+      var when=new Date(u.by*1000).toLocaleDateString('en-US',{day:'numeric',month:'short'});
+      var days=u.blocksLeft*25/86400;
+      $('update').textContent=u.blocksLeft<=0?'Needed now':'before '+when;
+      $('update').className=days<7?'warn':'';
+      $('i-stop').textContent='Block '+fmt(u.stopHeight)+(u.blocksLeft>0?', about '+when:'');
+    }else{$('update').textContent='–';$('update').className='';$('i-stop').textContent='–';}
+    // The latest blocks.
+    var blocks=v.blocks||[];
+    $('bars').hidden=$('axis').hidden=!blocks.length;$('noblocks').hidden=!!blocks.length;
+    if(!blocks.length){$('lastblk').textContent='';return;}
+    var top=blocks[blocks.length-1],max=Math.max.apply(null,blocks.map(function(b){return b.tx;}).concat([4]));
+    var tn=0,ts=0;
+    $('bars').innerHTML=blocks.map(function(b){
+      tn+=b.tx;ts+=b.shielded;
+      var isNew=lastHeight&&b.height>lastHeight;
+      return '<div class="bar'+(isNew?' new':'')+'" style="height:'+Math.max(4,Math.round(b.tx/max*100))+'%" title="Block '+fmt(b.height)+': '+b.tx+' transactions, '+b.shielded+' shielded"><span class="s" style="flex:'+b.shielded+'"></span><span class="t" style="flex:'+(b.tx-b.shielded)+'"></span></div>';
+    }).join('');
+    $('share').textContent=tn?Math.round(ts/tn*100)+'%':'–';
+    // New blocks arrive on the planet as dots.
+    if(lastHeight)blocks.forEach(function(b){if(b.height>lastHeight)window.Planet.block(b.tx,b.shielded);});
+    lastHeight=top.height;lastBlockTime=top.time;
+    lastAgo();
+  }
+  function lastAgo(){
+    if(!lastBlockTime){$('lastblk').textContent='';return;}
+    var s=Math.max(0,Math.round(Date.now()/1000-lastBlockTime));
+    $('lastblk').textContent='last one '+(s<90?s+' s':Math.round(s/60)+' min')+' ago';
+  }
+  function loadNetwork(){
+    getJson('api/network').then(renderNetwork).catch(function(){}).then(function(){setTimeout(loadNetwork,10000);});
+  }
+  setInterval(function(){lastAgo();running();},1000);
+
+  // --- Pairing the Rock it app ------------------------------------------------
   var pairState=null;
   function pairLink(code,tls){
     var link='rockit://pair?h='+encodeURIComponent(pairHost())+'&c='+code;
@@ -312,19 +413,15 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-s
     pairState=st;
     var c=st.code;
     $('code').textContent=c.slice(0,4)+'-'+c.slice(4);
-    if(typeof qrcode==='function'){
-      var q=qrcode(0,'M');q.addData(pairLink(c,st.tls));q.make();
-      $('qr').innerHTML=q.createSvgTag({cellSize:4,margin:0,scalable:true});
-    }
-    var list=st.devices||[];
+    $('qr').innerHTML=qrSvg(pairLink(c,st.tls));
+    var list=st.devices||[];devices=list.length;
     $('devices').innerHTML=list.length?list.map(function(d){
       var seen=d.seen?new Date(d.seen*1000).toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short'}):'';
-      return '<li><span>'+esc(d.name)+' <small>· last seen '+esc(seen)+'</small></span><button type="button" class="quiet" data-id="'+esc(d.id)+'">Remove</button></li>';
+      return '<li><span>'+esc(d.name)+' <small>· last seen '+esc(seen)+'</small></span><button type="button" class="pill" data-id="'+esc(d.id)+'">Remove</button></li>';
     }).join(''):'<li><span><small>No iPhones paired yet.</small></span></li>';
-    $('phones').querySelector('summary').textContent='Your iPhones'+(list.length?' ('+list.length+')':'');
+    $('phones-title').textContent='Your iPhones'+(list.length?' ('+list.length+')':'');
     $('notls').hidden=!!st.tls;
-    $('pairbox').hidden=false;
-    showExpiry();
+    showExpiry();nextStep();
   }
   function showExpiry(){
     if(!pairState)return;
@@ -332,12 +429,7 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-s
     if(left<=0){loadPair();return;}
     $('expires').textContent='Valid for '+Math.ceil(left/60)+' more min';
   }
-  function loadPair(){
-    fetch('api/pairing',{cache:'no-store'}).then(function(r){return r.json();}).then(renderPair).catch(function(){});
-  }
-  function post(path,body){
-    return fetch(path,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','X-Rock-It':'1'},body:JSON.stringify(body||{})}).then(function(r){return r.json();});
-  }
+  function loadPair(){getJson('api/pairing').then(renderPair).catch(function(){});}
   $('newcode').addEventListener('click',function(){post('api/pairing/new').then(renderPair);});
   $('devices').addEventListener('click',function(e){
     var id=e.target&&e.target.getAttribute('data-id');if(!id)return;
@@ -347,78 +439,51 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-s
   setInterval(showExpiry,15000);
   setInterval(loadPair,30000);
 
-  function tick(){
-    fetch('api/status',{cache:'no-store'}).then(function(r){return r.json();}).then(render)
-      .catch(function(){$('sub').textContent='Rock it is not answering. Trying again…';})
-      .then(function(){setTimeout(tick,5000);});
-  }
-
-  // The private address: the Rock's own Tailscale node, the one way in for
-  // Zodl, Vizor, Lock it, Pocket and the Rock it app, at home and away.
-  var owTimer=null,owWasOn=null;
-  function qrSvg(text){
-    if(typeof qrcode!=='function')return '';
-    var q=qrcode(0,'M');q.addData(text);q.make();
-    return q.createSvgTag({cellSize:4,margin:0,scalable:true});
-  }
-  function placePair(on){
-    var box=$('pairbox'),slot=$(on?'pair-on':'pair-off');
-    if(box.parentNode!==slot)slot.appendChild(box);
-  }
+  // --- The private address: the Rock's own Tailscale node ----------------------
+  // One way in for Zodl, Vizor, Zecky Lock it and the Rock it app, at home and away.
+  var owTimer=null;
   function renderOw(w){
     var wasName=tsName;
     owState=w.state;
     tsName=w.state==='on'?String(w.name||''):'';
-    var h='',s3='',f='';
-    var cancel='<div class="actions"><button type="button" class="quiet" data-ow="off">Cancel</button></div>';
+    var h='';
+    var cancel='<div class="actions"><button type="button" class="pill" data-ow="off">Cancel</button></div>';
     if(w.state==='unavailable'){
-      h='<p>Tailscale is not available right now. If this stays, restart Zecky Rock it on your Umbrel. Meanwhile your wallets can use your home Wi-Fi, below.</p>';
+      h='<p class="calm">Tailscale is not available right now. If this stays, restart Zecky Rock it on your Umbrel. Meanwhile wallets can use your home Wi-Fi, below.</p>';
     }else if(w.state==='off'){
       h='<p>One encrypted address for all your wallets and the Rock it app, at home and away. It uses your own free Tailscale network; only your devices can reach it.</p>'+
         '<p class="calm"><strong>Before you start:</strong> install Tailscale on your phone, and switch on HTTPS Certificates in the Tailscale admin console, on the DNS page.</p>'+
-        '<div class="actions"><button type="button" data-ow="on">Turn on</button></div>'+
+        '<div class="actions"><button type="button" class="pill gold" data-ow="on">Turn on</button></div>'+
         '<p class="small">Your Rock joins your Tailscale network as <em>rockit</em>. Its name appears in public certificate logs. Your home address does not.</p>';
     }else if(w.state==='login'){
-      h='<p>'+dot('wait','')+'Log in to Tailscale to finish, with the account your phone uses.</p>'+
-        '<div class="actions"><a class="btn" href="'+esc(w.link)+'" target="_blank" rel="noopener noreferrer">Open the Tailscale login</a><button type="button" class="quiet" data-ow="off">Cancel</button></div>'+
-        '<p class="small">This page updates by itself.</p>';
+      h='<p><span class="dotw"></span>Log in to Tailscale to finish, with the account your phone uses.</p>'+
+        '<div class="actions"><a class="pill gold" href="'+esc(w.link)+'" target="_blank" rel="noopener noreferrer">Open the Tailscale login</a><button type="button" class="pill" data-ow="off">Cancel</button></div>'+
+        '<p class="small">This updates by itself.</p>';
     }else if(w.state==='approve'){
-      h='<p>'+dot('wait','')+'Approve the device <em>rockit</em> in your Tailscale admin console, under Machines.</p><p class="small">This page updates by itself.</p>'+cancel;
+      h='<p><span class="dotw"></span>Approve the device <em>rockit</em> in your Tailscale admin console, under Machines.</p><p class="small">This updates by itself.</p>'+cancel;
     }else if(w.state==='nohttps'){
-      h='<p>'+dot('wait','')+'Almost there. Switch on <strong>HTTPS Certificates</strong> in your Tailscale admin console, on the DNS page.</p><p class="small">This page updates by itself.</p>'+cancel;
+      h='<p><span class="dotw"></span>Almost there. Switch on <strong>HTTPS Certificates</strong> in your Tailscale admin console, on the DNS page.</p><p class="small">This updates by itself.</p>'+cancel;
     }else if(w.state==='on'){
       var name=esc(w.name),wallet=esc(w.address);
-      s3='<div class="addr"><code id="ow-address">'+wallet+'</code><button type="button" class="quiet" data-ow="copy">Copy</button></div>'+
+      h='<div class="addr"><code id="ow-address">'+wallet+'</code><button type="button" class="pill" data-ow="copy">Copy</button></div>'+
         '<dl class="apps">'+
-          '<dt>Lock it, Pocket, Vizor</dt><dd>Add a server, paste this address</dd>'+
+          '<dt>Zecky Lock it, Vizor</dt><dd>Add a server, paste this address</dd>'+
           '<dt>Zodl</dt><dd>More, Advanced Settings, Choose a server, Custom: <code>'+name+':'+esc(String(w.address).split(':').pop())+'</code></dd>'+
         '</dl>'+
-        '<p class="calm"><strong>Keep Tailscale on</strong> on your phone, also at home.</p>';
-      f='<p class="sub">Wallet server</p>'+
+        '<p class="calm"><strong>Keep Tailscale on</strong> on your phone, also at home.</p>'+
         '<div class="pair"><div class="qr" role="img" aria-label="Wallet server address as a QR code">'+qrSvg(w.address)+'</div>'+
         '<p class="small">For wallets that can scan a server address. Nothing secret in it.</p></div>'+
-        '<p class="sub">Turning off</p>'+
-        '<p>Turning it off logs your Rock out of Tailscale, and every wallet using this address stops. If you turn it on again, first remove the old <em>rockit</em> in your Tailscale admin console, or the new one is named <em>rockit-1</em>.</p>'+
-        '<div class="actions"><button type="button" class="quiet" data-ow="off">Turn off</button></div>';
+        '<p class="calm">Turning it off logs your Rock out of Tailscale, and every wallet using this address stops. If you turn it on again, first remove the old <em>rockit</em> in your Tailscale admin console, or the new one is named <em>rockit-1</em>.</p>'+
+        '<div class="actions"><button type="button" class="pill" data-ow="off">Turn off</button></div>';
     }
     $('ow-body').innerHTML=h;
-    $('s3-body').innerHTML=s3;
-    $('ow-foot').innerHTML=f;
-    $('more').hidden=w.state!=='on';
-    placePair(w.state==='on');
-    // Without the private address, home Wi-Fi is the way in: open it then,
-    // and fold it away once the address is on. Only when that changes, so a
-    // fold the owner opened or closed stays as it is.
-    var isOn=w.state==='on';
-    if(isOn!==owWasOn){$('local').open=!isOn&&synced;owWasOn=isOn;}
-    showAddress();
-    steps();
+    showAddress();nextStep();
     if(tsName!==wasName&&pairState)renderPair(pairState);
     clearTimeout(owTimer);
     owTimer=setTimeout(loadOw,(w.state==='on'||w.state==='off'||w.state==='unavailable')?30000:4000);
   }
-  function loadOw(){fetch('api/wallets',{cache:'no-store'}).then(function(r){return r.json();}).then(renderOw).catch(function(){});}
-  $('ow').parentNode.addEventListener('click',function(e){
+  function loadOw(){getJson('api/wallets').then(renderOw).catch(function(){});}
+  $('ow-body').addEventListener('click',function(e){
     var t=e.target&&e.target.getAttribute('data-ow');if(!t)return;
     if(t==='copy'){copyFrom($('ow-address'),e.target);return;}
     if(t==='on'&&!confirm('Turn on the private address? Your Rock\'s Tailscale name becomes public in certificate logs. Your home address does not.'))return;
@@ -427,7 +492,7 @@ footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-s
     post('api/wallets/'+t).then(renderOw).catch(function(){e.target.disabled=false;});
   });
 
-  showAddress();steps();tick();loadPair();loadOw();
+  showAddress();tick();loadNetwork();loadPair();loadOw();
 })();
 </script>
 </body>

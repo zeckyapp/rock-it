@@ -2,11 +2,12 @@
 
 A small web server for the Umbrel app: it shows how far the Zcash node
 (Zakura) is, whether the wallet server (Zaino) accepts wallets, and how to
-connect Zecky Lock it and Zecky Pocket. Python standard library only.
+connect Zecky Lock it and other wallets. Python standard library only.
 
 It only reads from the node: one fixed set of RPC calls, a TCP check on the
 wallet port and the free space on the data drive. No request data is passed
-on to the node.
+on to the node. Of the node's peers it reads only their software name, never
+their addresses.
 
 Two kinds of callers:
 
@@ -58,6 +59,12 @@ PAGE_CLIENTS = frozenset(
 )
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+# The page's own fonts (Inter and Newsreader, SIL Open Font License), so it
+# loads nothing from the internet.
+FONTS = frozenset(
+    f"/fonts/{name}.woff2"
+    for name in ("inter-400", "inter-500", "inter-600", "newsreader-300", "newsreader-400")
+)
 CACHE_SECONDS = 5
 
 CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # no 0/O, 1/I/L
@@ -85,6 +92,14 @@ WALLET_HTTPS_PORT = 9067
 # own encrypted phone port. Empty: worked out from this container's address.
 PHONE_FORWARD = os.environ.get("PHONE_FORWARD", "")
 TS_MAX_REPLY = 1 << 20
+
+# The block where this Zakura release stops (it refuses to run past it). Set in
+# the compose file with each node update; 0 means unknown.
+ZAKURA_STOP_HEIGHT = int(os.environ.get("ZAKURA_STOP_HEIGHT", "0") or 0)
+BLOCK_SECONDS = 25  # Mainnet block spacing since NU7 (ZIP 259)
+BLOCKS_SHOWN = 16
+NETWORK_CACHE_SECONDS = 10
+STARTED = time.time()
 
 _lock = threading.Lock()
 _cache = {"at": 0.0, "value": None}
@@ -168,6 +183,7 @@ def pools(value_pools):
     if not isinstance(value_pools, list):
         return None
     shielded = total = 0
+    by_pool = {}
     for p in value_pools:
         try:
             zat = int(p["chainValueZat"])
@@ -176,9 +192,10 @@ def pools(value_pools):
         total += zat
         if p.get("id") in SHIELDED_POOLS:
             shielded += zat
+            by_pool[p["id"]] = by_pool.get(p["id"], 0) + zat
     if total <= 0:
         return None
-    return {"shieldedZat": shielded, "totalZat": total}
+    return {"shieldedZat": shielded, "totalZat": total, "byPool": by_pool}
 
 
 def privacy():
@@ -211,6 +228,154 @@ def status():
             "version": APP_VERSION,
         }
         _cache.update(at=now, value=value)
+        return value
+
+
+# --- What the node sees of the network --------------------------------------
+#
+# For the page's cards: the latest blocks and how many of their transactions
+# were shielded, the software the node's peers run, and when this Zakura
+# release stops. Peer addresses are dropped as soon as the reply arrives.
+
+_net_lock = threading.Lock()
+_net_cache = {"at": 0.0, "value": None}
+_blocks = {}  # height -> summary, only the last BLOCKS_SHOWN are kept
+
+
+def _zat(value):
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _actions(bundle):
+    if isinstance(bundle, dict) and isinstance(bundle.get("actions"), list):
+        return bundle["actions"]
+    return []
+
+
+def tx_kind(tx):
+    """How a transaction from getblock (verbosity 2) counts on the page.
+
+    coinbase:    the miner's reward, left out of the counts
+    shielded:    fully shielded (nothing transparent in or out), or moving
+                 transparent ZEC into a shielded pool
+    transparent: everything else, including moving ZEC out of a shielded pool
+    """
+    vin = tx.get("vin") or []
+    if any(isinstance(i, dict) and "coinbase" in i for i in vin):
+        return "coinbase"
+    orchard, ironwood = tx.get("orchard"), tx.get("ironwood")
+    has_shielded = bool(
+        tx.get("vShieldedSpend")
+        or tx.get("vShieldedOutput")
+        or tx.get("vjoinsplit")
+        or _actions(orchard)
+        or _actions(ironwood)
+    )
+    if not has_shielded:
+        return "transparent"
+    transparent_in, transparent_out = bool(vin), bool(tx.get("vout"))
+    if not transparent_in and not transparent_out:
+        return "shielded"
+    if transparent_in:
+        # A pool's value balance is what leaves it, so a negative sum is ZEC
+        # going into the shielded pools.
+        out_of_pools = _zat(tx.get("valueBalanceZat"))
+        for bundle in (orchard, ironwood):
+            if isinstance(bundle, dict):
+                out_of_pools += _zat(bundle.get("valueBalanceZat"))
+        if out_of_pools < 0:
+            return "shielded"
+    return "transparent"
+
+
+def block_summary(height):
+    block = rpc("getblock", [str(height), 2], timeout=10) or {}
+    kinds = [tx_kind(t) for t in block.get("tx") or [] if isinstance(t, dict)]
+    counted = [k for k in kinds if k != "coinbase"]
+    return {
+        "height": height,
+        "time": _zat(block.get("time")),
+        "tx": len(counted),
+        "shielded": counted.count("shielded"),
+    }
+
+
+def recent_blocks(tip):
+    """The last BLOCKS_SHOWN blocks up to tip, oldest first. Each block is
+    fetched once; a block that cannot be read now is left out."""
+    wanted = range(max(1, tip - BLOCKS_SHOWN + 1), tip + 1)
+    for height in wanted:
+        if height not in _blocks:
+            try:
+                _blocks[height] = block_summary(height)
+            except Exception:  # noqa: BLE001 - try again next time
+                pass
+    for height in list(_blocks):
+        if height not in wanted:
+            del _blocks[height]
+    return [_blocks[h] for h in wanted if h in _blocks]
+
+
+SOFTWARE_NAMES = {"MagicBean": "zcashd"}
+
+
+def software(subver):
+    """'/Zakura:1.8.9/' -> 'Zakura 1.8'. Only letters, digits and dots, short."""
+    first = str(subver or "").strip("/").split("/")[0]
+    name, _, version = first.partition(":")
+    name = "".join(c for c in name if c.isalnum())[:16]
+    name = SOFTWARE_NAMES.get(name, name) or "Unknown"
+    version = ".".join(version.split("(")[0].split(".")[:2])
+    version = "".join(c for c in version if c.isdigit() or c == ".")[:8]
+    return f"{name} {version}".strip()
+
+
+def peer_software(peers, top=3):
+    """Peers counted by software: the most common ones, the rest as Other."""
+    counts = {}
+    for p in peers or []:
+        if isinstance(p, dict):
+            name = software(p.get("subver"))
+            counts[name] = counts.get(name, 0) + 1
+    ranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    listed = [{"name": n, "count": c} for n, c in ranked[:top]]
+    rest = sum(c for _, c in ranked[top:])
+    if rest:
+        listed.append({"name": "Other", "count": rest})
+    return listed
+
+
+def network():
+    with _net_lock:
+        now = time.time()
+        if _net_cache["value"] is not None and now - _net_cache["at"] < NETWORK_CACHE_SECONDS:
+            return _net_cache["value"]
+        s = status()
+        n = s["node"]
+        value = {"since": int(STARTED), "node": None, "peers": [], "blocks": [], "update": None}
+        if n.get("reachable"):
+            try:
+                info = rpc("getinfo") or {}
+                value["node"] = software(info.get("subversion"))
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                value["peers"] = peer_software(rpc("getpeerinfo"))
+            except Exception:  # noqa: BLE001
+                pass
+            if s["phase"] in ("ready", "opening"):
+                value["blocks"] = recent_blocks(n["height"])
+            if ZAKURA_STOP_HEIGHT and n["height"]:
+                left = ZAKURA_STOP_HEIGHT - n["height"]
+                value["update"] = {
+                    "stopHeight": ZAKURA_STOP_HEIGHT,
+                    "blocksLeft": left,
+                    "by": int(now + max(0, left) * BLOCK_SECONDS),
+                }
+        _net_cache.update(at=now, value=value)
         return value
 
 
@@ -653,11 +818,11 @@ class Handler(BaseHTTPRequestHandler):
     secure = False
     timeout = 30  # seconds a connection may sit idle
 
-    def send(self, code, body, ctype):
+    def send(self, code, body, ctype, cache=False):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", "max-age=86400" if cache else "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("X-Frame-Options", "DENY")
@@ -704,8 +869,14 @@ class Handler(BaseHTTPRequestHandler):
             self.file("icon.svg", "image/svg+xml")
         elif path == "/qr.js":
             self.file("qr.js", "text/javascript; charset=utf-8")
+        elif path == "/planet.js":
+            self.file("planet.js", "text/javascript; charset=utf-8")
+        elif path in FONTS:
+            self.file(path[1:], "font/woff2", cache=True)
         elif path == "/api/status":
             self.send_json(status())
+        elif path == "/api/network":
+            self.send_json(network())
         elif path == "/api/widget":
             self.send_json(widget())
         elif path == "/api/widget/stats":
@@ -792,9 +963,9 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self.send_json({"error": "not found"}, 404)
 
-    def file(self, name, ctype):
+    def file(self, name, ctype, cache=False):
         with open(os.path.join(HERE, name), "rb") as f:
-            self.send(200, f.read(), ctype)
+            self.send(200, f.read(), ctype, cache)
 
     def log_message(self, fmt, *args):
         pass  # keep the logs quiet; nothing here is worth keeping
