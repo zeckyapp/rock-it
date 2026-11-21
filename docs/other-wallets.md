@@ -1,12 +1,18 @@
 # Other wallets (Zodl, Vizor, …)
 
-Design for an option on the Rock it page that lets any Zcash wallet with a
-custom-server setting use the Rock, at home and away. Status: proven by hand
-and prototyped, not built yet.
+The option on the Rock it page (Settings, Private address) that lets any
+Zcash wallet with a custom-server setting use the Rock, at home and away.
+Status: built and in use since Rock it 0.3.11. This page keeps the design
+notes and what was found on the way.
+
+**One limit for other wallets:** Rock it's Zaino leaves the completing block
+hash of subtree roots empty (see the patches in the README). Wallets on the
+ECC SDK (Zecky, Zodl) do not use it. A wallet that does will not work with
+Rock it.
 
 ## Why
 
-Zecky Lock it and Pocket reach Zaino on the home address without TLS (they
+Zecky Lock it and Flip it reach Zaino on the home address without TLS (they
 are patched to allow that on private addresses). Stock wallets such as Zodl
 and Vizor only connect over HTTPS with a certificate they trust, so they
 cannot use the Rock today. The plain wallet port also lets anyone on the home
@@ -57,12 +63,15 @@ the internet.
 - A `tailscale` container in Rock it (official image, pinned by digest),
   hostname `rockit`, userspace networking, state in `data/tailscale`.
 - It runs `tailscaled` directly as user 1000 (not root, no start script).
-- Its Serve config: HTTPS on 9067 → Zaino on Rock it's own network. Nothing
-  else is served; no subnet routes, no exit node, no Tailscale SSH.
+- Its Serve config: HTTPS on 9067 → Zaino on Rock it's own network, and
+  port 8139 passed on to the status server's own HTTPS port, for the Rock it
+  iPhone app. Nothing else is served; no subnet routes, no exit node, no
+  Tailscale SSH, and Funnel (the public internet) is switched off.
 - Until the owner logs in, it is not on any tailnet and serves nothing.
 - The status server drives it through Tailscale's local API (a socket shared
   between the two containers): read the state and login link, start a login,
-  log out.
+  log out. Since Rock it 0.3.21 the status server gets only that socket, not
+  the folder with Tailscale's state (the Rock's identity in the tailnet).
 
 ## Prototype results (October 2026)
 
@@ -89,9 +98,10 @@ Tried by hand on the home Umbrel, next to Rock it 0.3.8:
 
 1. The Tailscale container sits on Rock it's own network, so it could reach
    the node's RPC (no password). Accepted for now: Tailscale serves only the
-   one port, and the image is pinned. A password on the RPC is on the list.
-2. Whether Lock it and Pocket can move to the same HTTPS address later, so
-   the plain wallet port can close.
+   ports above, and the image is pinned. Cookie login on the RPC is planned
+   for Rock it 0.3.22.
+2. Whether Lock it and Flip it can move to the same HTTPS address for good,
+   so the plain wallet port can close.
 
 ## Testers
 

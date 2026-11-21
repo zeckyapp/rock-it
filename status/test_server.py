@@ -17,6 +17,9 @@ from http.server import ThreadingHTTPServer
 import server
 
 
+# The real status(), before any test swaps it for a stub.
+REAL_STATUS = server.status
+
 class Clock:
     def __init__(self):
         self.now = 1_000_000.0
@@ -48,12 +51,45 @@ class PairingTest(unittest.TestCase):
         self.clock.now += server.CODE_SECONDS + 1
         self.assertEqual(self.p.pair(code, "x")[0], 403)
 
-    def test_wrong_tries_kill_the_code(self):
+    def test_wrong_tries_count_per_sender(self):
         code = self.p.current_code()["code"]
-        for _ in range(server.CODE_TRIES - 1):
-            self.assertEqual(self.p.pair("WRONGWRO", "x")[0], 403)
-        self.assertEqual(self.p.pair("WRONGWRO", "x")[0], 429)
-        self.assertEqual(self.p.pair(code, "x")[0], 403)
+        for _ in range(server.SENDER_TRIES - 1):
+            self.assertEqual(self.p.pair("WRONGWRO", "x", "10.0.0.66")[0], 403)
+        self.assertEqual(self.p.pair("WRONGWRO", "x", "10.0.0.66")[0], 429)
+        # That sender is shut out, even with the right code...
+        self.assertEqual(self.p.pair(code, "x", "10.0.0.66")[0], 429)
+        # ...but the owner's phone can still pair.
+        self.assertEqual(self.p.pair(code, "Phone", "10.0.0.5")[0], 200)
+
+    def test_sender_lock_ends_after_the_window(self):
+        for _ in range(server.SENDER_TRIES):
+            self.p.pair("WRONGWRO", "x", "10.0.0.66")
+        self.clock.now += server.SENDER_WINDOW + 1
+        code = self.p.current_code()["code"]
+        self.assertEqual(self.p.pair(code, "x", "10.0.0.66")[0], 200)
+
+    def test_many_wrong_tries_in_all_kill_the_code(self):
+        code = self.p.current_code()["code"]
+        for i in range(server.CODE_TRIES):
+            self.p.pair("WRONGWRO", "x", "10.0.1.%d" % i)
+        self.assertEqual(self.p.pair(code, "x", "10.0.0.5")[0], 403)
+
+    def test_odd_codes_are_refused_not_crashed(self):
+        code = self.p.current_code()["code"]
+        for odd in ("\u00c9\u00c9\u00c9\u00c9\u00c9\u00c9\u00c9\u00c9", "\u0663" * 8, "x" * 5000, None, 12345678):
+            self.assertEqual(self.p.pair(odd, "x", "10.0.0.%d" % len(str(odd)))[0], 403)
+        self.assertEqual(self.p.pair(code, "x", "10.0.0.5")[0], 200)
+
+    def test_damaged_devices_file_is_kept(self):
+        path = os.path.join(self.dir, "devices.json")
+        with open(path, "w") as f:
+            f.write("{not json")
+        p = server.Pairing(self.dir, clock=self.clock)
+        self.assertTrue(p.damaged)
+        code = p.current_code()["code"]
+        self.assertEqual(p.pair(code, "x", "10.0.0.5")[0], 503)
+        with open(path) as f:
+            self.assertEqual(f.read(), "{not json")
 
     def test_keys_are_stored_hashed_and_survive_restart(self):
         code = self.p.current_code()["code"]
@@ -237,6 +273,91 @@ class NetworkTest(unittest.TestCase):
         self.assertEqual((v["node"], v["peers"], v["blocks"], v["update"]), (None, [], [], None))
 
 
+class NodeStateTest(unittest.TestCase):
+    """Stop height, 'Node update needed' and 'Wallets paused'."""
+
+    def setUp(self):
+        self.saved = (server.rpc, server.node, server.port_open, server.zaino_height,
+                      server.ZAKURA_STOP_HEIGHT, server.last_seen, server.status)
+        server.status = REAL_STATUS
+        self.dir = tempfile.mkdtemp()
+        server.last_seen = server.LastSeen(self.dir)
+        server._stop.update(at=0.0, value=None)
+        server._cache.update(at=0.0, value=None)
+        server._paused["since"] = None
+        server.port_open = lambda addr, timeout=2: True
+        server.zaino_height = lambda: None
+
+    def tearDown(self):
+        (server.rpc, server.node, server.port_open, server.zaino_height,
+         server.ZAKURA_STOP_HEIGHT, server.last_seen, server.status) = self.saved
+        server._stop.update(at=0.0, value=None)
+        server._cache.update(at=0.0, value=None)
+        server._paused["since"] = None
+
+    def fresh(self):
+        server._cache.update(at=0.0, value=None)
+        return server.status()
+
+    def synced(self, height):
+        server.node = lambda: {"reachable": True, "height": height, "estimatedHeight": height,
+                               "progress": 1.0, "peers": 20, "pools": None}
+
+    def test_stop_height_comes_from_the_node(self):
+        server.rpc = lambda m, p=None, timeout=4: {"end_of_service": {"block_height": 3_700_000, "estimated_time": 1_800_000_000}}
+        server.ZAKURA_STOP_HEIGHT = 3_643_309
+        self.assertEqual(server.stop_height(), {"height": 3_700_000, "time": 1_800_000_000, "source": "node"})
+
+    def test_stop_height_falls_back_to_the_setting(self):
+        def fail(m, p=None, timeout=4):
+            raise RuntimeError("Method not found")
+        server.rpc = fail
+        server.ZAKURA_STOP_HEIGHT = 3_643_309
+        self.assertEqual(server.stop_height()["source"], "setting")
+
+    def test_warning_two_weeks_before_the_stop(self):
+        stop = {"height": 1_000_000, "time": 0}
+        now = 1_000
+        far = server.node_update(1_000_000 - 20 * 3456, stop, now)
+        near = server.node_update(1_000_000 - 10 * 3456, stop, now)
+        self.assertFalse(far["warn"])
+        self.assertTrue(near["warn"])
+
+    def test_update_needed_at_the_stop_and_after_the_node_stops(self):
+        server.rpc = lambda m, p=None, timeout=4: {"end_of_service": {"block_height": 1_000, "estimated_time": 0}}
+        self.synced(990)
+        self.assertEqual(self.fresh()["phase"], "ready")
+        self.synced(1_000)
+        s = self.fresh()
+        self.assertEqual(s["phase"], "update")
+        # Zakura stops itself: the node no longer answers.
+        server.node = lambda: {"reachable": False}
+        self.assertEqual(self.fresh()["phase"], "update")
+        # Also after the status page restarts.
+        server.last_seen = server.LastSeen(self.dir)
+        s = self.fresh()
+        self.assertEqual((s["phase"], s["update"]["stopHeight"]), ("update", 1_000))
+        self.assertEqual(server.widget()["text"], "Update needed")
+
+    def test_a_node_that_is_just_starting_is_not_an_update(self):
+        server.node = lambda: {"reachable": False}
+        self.assertEqual(self.fresh()["phase"], "starting")
+
+    def test_wallets_paused_only_after_a_while(self):
+        server.rpc = lambda m, p=None, timeout=4: {}
+        self.synced(2_000)
+        server.zaino_height = lambda: 2_000
+        self.assertEqual(self.fresh()["phase"], "ready")
+        server.zaino_height = lambda: 1_990
+        self.assertFalse(server.wallets_paused(2_000, 1_990, 100.0))
+        self.assertFalse(server.wallets_paused(2_000, 1_990, 150.0))
+        self.assertTrue(server.wallets_paused(2_000, 1_990, 100.0 + server.PAUSED_AFTER))
+        # Caught up again.
+        self.assertFalse(server.wallets_paused(2_001, 2_000, 400.0))
+        # Not answering is unknown, not paused.
+        self.assertFalse(server.wallets_paused(2_000, None, 500.0))
+
+
 class LimitTest(unittest.TestCase):
     def test_per_address_and_total(self):
         httpd = server.LimitedServer(("127.0.0.1", 0), server.Handler, total=3, per_address=2)
@@ -252,6 +373,25 @@ class LimitTest(unittest.TestCase):
             self.assertTrue(httpd.admit("192.168.1.22"))
             self.assertEqual(httpd.by_address, {"192.168.1.20": 1, "192.168.1.21": 1, "192.168.1.22": 1})
         finally:
+            httpd.server_close()
+
+    def test_deadline_cuts_a_slow_client(self):
+        httpd = server.LimitedServer(("127.0.0.1", 0), server.Handler, deadline=0.5)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        try:
+            s = socket.create_connection(httpd.server_address)
+            s.sendall(b"GET /api/status HTTP/1.1\r\nHost: x\r\n")  # never finishes
+            s.settimeout(5)
+            start = time.time()
+            self.assertEqual(s.recv(100), b"")
+            self.assertLess(time.time() - start, 3)
+            for _ in range(50):
+                if httpd.active == 0:
+                    break
+                time.sleep(0.05)
+            self.assertEqual(httpd.active, 0)
+        finally:
+            httpd.shutdown()
             httpd.server_close()
 
     def test_full_server_closes_new_connections_and_recovers(self):

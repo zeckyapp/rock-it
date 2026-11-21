@@ -10,13 +10,13 @@ FROM python:3.12-alpine3.22@sha256:a190708a2dec1bd18b1decb539f8e8f5407abaa9bf39c
 LABEL org.opencontainers.image.title="Zecky Rock it status" \
       org.opencontainers.image.description="Status and connection page for Zecky Rock it" \
       org.opencontainers.image.source="https://github.com/zeckyapp/rock-it" \
-      org.opencontainers.image.licenses="Apache-2.0"
+      org.opencontainers.image.licenses="MIT"
 
 # openssl makes the Rock's own HTTPS certificate on first start.
 RUN apk add --no-cache openssl
 
 WORKDIR /app
-COPY server.py index.html icon.svg qr.js planet.js ./
+COPY server.py index.html icon.svg qr.js qr.js.LICENSE planet.js ./
 COPY fonts/ ./fonts/
 
 USER 1000:1000

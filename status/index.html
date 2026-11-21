@@ -138,8 +138,8 @@ dl.apps{margin:8px 0;font-size:13px}dl.apps dt{color:var(--fg);font-weight:500}d
       <div class="egg" id="egg" aria-hidden="true"></div>
       <div class="tl"><span class="live" id="live"></span><span id="running">Starting</span></div>
       <div class="tr">Peer dots land at random places. Rock it never shows where anyone is.</div>
-      <div class="bl" aria-live="polite">
-        <h1 id="headline">Starting<i id="dot">.</i></h1>
+      <div class="bl">
+        <h1 id="headline" aria-live="polite">Starting<i id="dot">.</i></h1>
         <p class="sub" id="sub">Checking your node…</p>
         <div class="next" id="next" hidden><button type="button" class="pill gold" id="nextbtn"></button></div>
       </div>
@@ -284,6 +284,7 @@ dl.apps{margin:8px 0;font-size:13px}dl.apps dt{color:var(--fg);font-weight:500}d
   }
   $('copy').addEventListener('click',function(){copyFrom($('address'),$('copy'));});
 
+  function dayMonth(sec){return 'before '+new Date(sec*1000).toLocaleDateString('en-US',{day:'numeric',month:'short'});}
   function running(){
     if(!since)return;
     var s=Date.now()/1000-since,t;
@@ -308,17 +309,19 @@ dl.apps{margin:8px 0;font-size:13px}dl.apps dt{color:var(--fg);font-weight:500}d
     if(s.phase==='starting'){head='Starting';sub='Your Zcash node is starting. This takes a minute.';}
     else if(s.phase==='syncing'){head='Syncing';sub=pct.toFixed(1)+'% · block '+fmt(n.height)+' of about '+fmt(n.estimatedHeight)+'. A few days on a Raspberry Pi. You can close this page.';}
     else if(s.phase==='opening'){head='Almost ready';sub='Your node is in sync. The wallet server is opening.';}
-    else{head='In sync';sub='Block '+fmt(n.height)+', checked by you.';}
-    $('headline').firstChild.nodeValue=head;
-    $('sub').textContent=sub;
-    synced=s.phase==='ready'||s.phase==='opening';
+    else if(s.phase==='update'){head='Node update needed';sub='This Zakura version has reached its planned stop'+(s.update?' at block '+fmt(s.update.stopHeight):'')+'. Wallets that use your Rock see no new blocks until you update Zecky Rock it in the Umbrel App Store. Your funds are safe.';}
+    else if(s.phase==='paused'){head='Wallets paused';sub='Your node is at block '+fmt(n.height)+', but the wallet server stopped at '+fmt(s.walletServer.height)+'. Wallets that use your Rock see old data. Restart Zecky Rock it; if it stays, look for a Rock it update.';}
+    else{head='In sync';sub='Block '+fmt(n.height)+', checked by you.'+(s.update&&s.update.warn?' Node update due '+dayMonth(s.update.by)+'.':'');}
+    if($('headline').firstChild.nodeValue!==head)$('headline').firstChild.nodeValue=head;
+    if($('sub').textContent!==sub)$('sub').textContent=sub;
+    synced=s.phase==='ready'||s.phase==='opening'||s.phase==='paused';
     window.Planet.progress(s.phase==='starting'?0:(synced?1:n.progress));
     window.Planet.peers(n.reachable?(n.peers||0):0);
     $('live').className='live'+(n.reachable?' on':'');
     $('legend').hidden=!synced;
     $('peers').textContent=n.reachable&&n.peers!=null?fmt(n.peers):'–';
-    $('wallets').textContent=s.walletServer.open?'Ready':(synced?'Opening':'After sync');
-    $('wallets').className=s.walletServer.open?'ok':'';
+    $('wallets').textContent=s.phase==='paused'?'Paused':(s.phase==='update'?'Waiting for update':(s.walletServer.open?'Ready':(synced?'Opening':'After sync')));
+    $('wallets').className=s.phase==='paused'||s.phase==='update'?'warn':(s.walletServer.open?'ok':'');
     $('disk').textContent=s.disk?fmt(Math.round(s.disk.free/1e9))+' GB free':'–';
     var inbound=s.privacy&&s.privacy.inbound;
     $('i-mode').textContent=s.privacy?(inbound?'Open to other nodes':'Private, connects out only'):'–';
@@ -370,9 +373,8 @@ dl.apps{margin:8px 0;font-size:13px}dl.apps dt{color:var(--fg);font-weight:500}d
     var u=v.update;
     if(u){
       var when=new Date(u.by*1000).toLocaleDateString('en-US',{day:'numeric',month:'short'});
-      var days=u.blocksLeft*25/86400;
       $('update').textContent=u.blocksLeft<=0?'Needed now':'before '+when;
-      $('update').className=days<7?'warn':'';
+      $('update').className=u.warn?'warn':'';
       $('i-stop').textContent='Block '+fmt(u.stopHeight)+(u.blocksLeft>0?', about '+when:'');
     }else{$('update').textContent='–';$('update').className='';$('i-stop').textContent='–';}
     // The latest blocks.

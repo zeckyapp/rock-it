@@ -35,6 +35,7 @@ import secrets
 import socket
 import ssl
 import subprocess
+import sys
 import threading
 import time
 import urllib.request
@@ -70,7 +71,13 @@ CACHE_SECONDS = 5
 CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # no 0/O, 1/I/L
 CODE_LENGTH = 8
 CODE_SECONDS = 10 * 60
-CODE_TRIES = 5
+# Wrong tries: five per sender (address) in ten minutes, and twenty in all
+# before the code dies, so one device on the network cannot block pairing by
+# sending wrong codes. Each wrong try also waits a moment before the answer.
+CODE_TRIES = 20
+SENDER_TRIES = 5
+SENDER_WINDOW = 10 * 60
+WRONG_DELAY = float(os.environ.get("WRONG_DELAY", "1"))
 MAX_DEVICES = 10
 MAX_NAME = 40
 MAX_BODY = 2048
@@ -81,6 +88,9 @@ SEEN_EVERY = 60
 # no per-address limit.
 MAX_CONNECTIONS = 32
 MAX_PHONE_PER_ADDRESS = 8
+# A phone request must be done within this many seconds in all, so slow
+# clients cannot keep the phone port's places busy.
+PHONE_DEADLINE = 20
 
 # Other wallets (Zodl, Vizor, ...): an optional Tailscale node in its own
 # container, driven through its local API socket. Unset: not available.
@@ -100,6 +110,12 @@ BLOCK_SECONDS = 25  # Mainnet block spacing since NU7 (ZIP 259)
 BLOCKS_SHOWN = 16
 NETWORK_CACHE_SECONDS = 10
 STARTED = time.time()
+# Zaino's own JSON-RPC (on Rock it's network only), to see whether the wallet
+# server keeps up with the node. Unset: not checked.
+ZAINO_RPC = os.environ.get("ZAINO_RPC", "")
+PAUSED_LAG = 3  # blocks behind the node
+PAUSED_AFTER = 120  # seconds behind before the page says so
+UPDATE_WARN_DAYS = 14
 
 _lock = threading.Lock()
 _cache = {"at": 0.0, "value": None}
@@ -198,6 +214,123 @@ def pools(value_pools):
     return {"shieldedZat": shielded, "totalZat": total, "byPool": by_pool}
 
 
+# --- When this Zakura release stops ------------------------------------------
+#
+# Zakura stops itself at a set block. It reports that block through its
+# getdeprecationinfo call; ZAKURA_STOP_HEIGHT is only the fallback. The last
+# height and stop are remembered on disk, so after the node has stopped the
+# page can still say why, also when the status page itself restarts.
+
+_stop = {"at": 0.0, "value": None}
+STOP_CACHE_SECONDS = 600
+
+
+def stop_height():
+    """{'height', 'time', 'source'} for this Zakura release, or None."""
+    now = time.time()
+    if _stop["value"] is not None and now - _stop["at"] < STOP_CACHE_SECONDS:
+        return _stop["value"]
+    value = None
+    try:
+        eos = (rpc("getdeprecationinfo") or {}).get("end_of_service") or {}
+        height = int(eos["block_height"])
+        if height > 0:
+            value = {"height": height, "time": int(eos.get("estimated_time") or 0), "source": "node"}
+    except Exception:  # noqa: BLE001 - older node or not reachable
+        value = None
+    if value is None and ZAKURA_STOP_HEIGHT:
+        value = {"height": ZAKURA_STOP_HEIGHT, "time": 0, "source": "setting"}
+    if value is not None:
+        _stop.update(at=now, value=value)
+    return value
+
+
+def node_update(height, stop, now=None):
+    """When the next node update is due, for a node at `height`."""
+    if not stop or not height:
+        return None
+    now = time.time() if now is None else now
+    left = stop["height"] - height
+    by = stop["time"] if stop.get("time") else int(now + max(0, left) * BLOCK_SECONDS)
+    return {
+        "stopHeight": stop["height"],
+        "blocksLeft": left,
+        "by": by,
+        "warn": left <= 0 or by - now <= UPDATE_WARN_DAYS * 86400,
+    }
+
+
+class LastSeen:
+    """The last height and stop height, kept in a small file."""
+
+    def __init__(self, folder):
+        self.path = os.path.join(folder, "node.json")
+        self.value = None
+        self.saved_at = 0.0
+        try:
+            with open(self.path, encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data.get("height"), int) and isinstance(data.get("stop"), int):
+                self.value = {"height": data["height"], "stop": data["stop"]}
+        except (OSError, ValueError, AttributeError):
+            pass
+
+    def note(self, height, stop):
+        value = {"height": int(height), "stop": int(stop)}
+        if value == self.value:
+            return
+        self.value = value
+        now = time.time()
+        if now - self.saved_at < 60 and value["height"] < value["stop"] - 10:
+            return
+        self.saved_at = now
+        try:
+            tmp = self.path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(value, f)
+            os.replace(tmp, self.path)
+        except OSError:
+            pass
+
+    def stopped(self):
+        """True when the node was at (or just before) its stop height."""
+        v = self.value
+        return bool(v) and v["stop"] > 0 and v["height"] >= v["stop"] - 2
+
+
+last_seen = None  # set in main()
+
+
+# --- The wallet server keeping up -------------------------------------------
+
+_paused = {"since": None}
+
+
+def zaino_height():
+    """Zaino's own latest block from its JSON-RPC, or None when unknown."""
+    if not ZAINO_RPC:
+        return None
+    body = json.dumps({"jsonrpc": "2.0", "id": "rockit", "method": "getblockcount", "params": []}).encode()
+    req = urllib.request.Request(ZAINO_RPC, data=body, headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.load(resp)
+        return int(data["result"])
+    except Exception:  # noqa: BLE001 - not answering is "unknown", not "paused"
+        return None
+
+
+def wallets_paused(node_height, wallet_height, now):
+    """True once Zaino has been more than PAUSED_LAG blocks behind the node
+    for PAUSED_AFTER seconds."""
+    if wallet_height is None or node_height - wallet_height <= PAUSED_LAG:
+        _paused["since"] = None
+        return False
+    if _paused["since"] is None:
+        _paused["since"] = now
+    return now - _paused["since"] >= PAUSED_AFTER
+
+
 def privacy():
     if NODE_INBOUND:
         return {"mode": "supporter", "inbound": True}
@@ -211,18 +344,29 @@ def status():
             return _cache["value"]
         n = node()
         wallets = port_open(ZAINO_ADDR)
+        stop = stop_height() if n["reachable"] else None
+        update = node_update(n.get("height"), stop, now) if n["reachable"] else None
+        if stop and last_seen is not None and n.get("height"):
+            last_seen.note(n["height"], stop["height"])
+        wallet_height = None
         if not n["reachable"]:
-            phase = "starting"
+            phase = "update" if last_seen is not None and last_seen.stopped() else "starting"
+        elif update and update["blocksLeft"] <= 0:
+            phase = "update"
         elif n["progress"] < 0.999:
             phase = "syncing"
         elif not wallets:
             phase = "opening"
         else:
-            phase = "ready"
+            wallet_height = zaino_height()
+            phase = "paused" if wallets_paused(n["height"], wallet_height, now) else "ready"
+        if phase == "update" and update is None and last_seen is not None and last_seen.value:
+            update = {"stopHeight": last_seen.value["stop"], "blocksLeft": 0, "by": int(now), "warn": True}
         value = {
             "phase": phase,
             "node": n,
-            "walletServer": {"open": wallets, "port": WALLET_PORT},
+            "update": update,
+            "walletServer": {"open": wallets, "port": WALLET_PORT, "height": wallet_height},
             "disk": disk(),
             "privacy": privacy(),
             "version": APP_VERSION,
@@ -368,13 +512,7 @@ def network():
                 pass
             if s["phase"] in ("ready", "opening"):
                 value["blocks"] = recent_blocks(n["height"])
-            if ZAKURA_STOP_HEIGHT and n["height"]:
-                left = ZAKURA_STOP_HEIGHT - n["height"]
-                value["update"] = {
-                    "stopHeight": ZAKURA_STOP_HEIGHT,
-                    "blocksLeft": left,
-                    "by": int(now + max(0, left) * BLOCK_SECONDS),
-                }
+            value["update"] = node_update(n.get("height"), stop_height(), now)
         _net_cache.update(at=now, value=value)
         return value
 
@@ -391,6 +529,10 @@ def widget():
         progress = n["progress"]
     elif s["phase"] == "opening":
         text, label, progress = "Almost ready", "Opening the wallet port", 1
+    elif s["phase"] == "update":
+        text, label, progress = "Update needed", "This node version has reached its stop block", 1
+    elif s["phase"] == "paused":
+        text, label, progress = "Wallets paused", "The wallet server stopped following the node", 1
     else:
         text, label, progress = "Synced", f"Block {n['height']:,} · checked by you", 1
     return {
@@ -425,7 +567,7 @@ def widget_stats():
             {"title": "Network", "text": "–" if peers is None else f"{peers:,}", "subtext": "peers"},
             {
                 "title": "Wallets",
-                "text": "Ready" if s["walletServer"]["open"] else "Not ready",
+                "text": "Paused" if s["phase"] == "paused" else ("Ready" if s["walletServer"]["open"] else "Not ready"),
                 "subtext": "",
             },
             {
@@ -501,7 +643,7 @@ def serve_config(name):
     """Two ports, nothing else.
 
     9067: HTTPS with Tailscale's trusted certificate, passed on to Zaino, for
-          any wallet (Zodl, Vizor, Lock it, Pocket).
+          any wallet (Zodl, Vizor, Lock it, Flip it).
     TLS_PORT (8139): passed through untouched to the Rock it app's own
           encrypted port, so the app still trusts only the Rock's fingerprint.
     """
@@ -613,8 +755,9 @@ def other_wallets_off():
 
 
 def clean_code(text):
-    """'abcd-efgh' -> 'ABCDEFGH'. Ignores spaces and dashes."""
-    return "".join(c for c in str(text).upper() if c.isalnum())
+    """'abcd-efgh' -> 'ABCDEFGH'. Ignores spaces, dashes and anything that is
+    not a plain letter or digit."""
+    return "".join(c for c in str(text).upper() if c.isascii() and c.isalnum())[:32]
 
 
 def clean_name(text):
@@ -634,6 +777,10 @@ class Pairing:
         self.clock = clock
         self.lock = threading.Lock()
         self.code = None  # {"value", "expires", "tries"}
+        self.senders = {}  # address -> [wrong tries, first wrong try]
+        # A devices file that cannot be read is kept as it is, never written
+        # over: pairing stops until someone looks at it.
+        self.damaged = False
         self.devices = self._load()
 
     # Storage
@@ -642,11 +789,13 @@ class Pairing:
         try:
             with open(self.path, encoding="utf-8") as f:
                 data = json.load(f)
-        except (OSError, ValueError):
+        except FileNotFoundError:
             return []
+        except (OSError, ValueError):
+            return self._damaged()
         devices = data.get("devices") if isinstance(data, dict) else None
         if not isinstance(devices, list):
-            return []
+            return self._damaged()
         return [
             d
             for d in devices
@@ -655,7 +804,15 @@ class Pairing:
             and isinstance(d.get("hash"), str)
         ]
 
+    def _damaged(self):
+        self.damaged = True
+        print(f"rockit: {self.path} cannot be read; it is kept as it is and pairing is off",
+              file=sys.stderr, flush=True)
+        return []
+
     def _save(self):
+        if self.damaged:
+            return
         tmp = self.path + ".tmp"
         try:
             fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -681,22 +838,35 @@ class Pairing:
 
     # The phone
 
-    def pair(self, code, name):
+    def pair(self, code, name, sender=""):
         """Returns (http status, body)."""
         with self.lock:
             now = self.clock()
+            if self.damaged:
+                return 503, {"error": "devices"}
+            tries = self.senders.get(sender)
+            if tries and now - tries[1] > SENDER_WINDOW:
+                tries = None
+                self.senders.pop(sender, None)
+            if tries and tries[0] >= SENDER_TRIES:
+                return 429, {"error": "tries"}
             current = self.code
             if current is None or current["expires"] <= now:
                 return 403, {"error": "expired"}
             if len(self.devices) >= MAX_DEVICES:
                 return 409, {"error": "full"}
             if not hmac.compare_digest(clean_code(code), current["value"]):
+                if tries is None:
+                    tries = self.senders[sender] = [0, now]
+                tries[0] += 1
                 current["tries"] += 1
                 if current["tries"] >= CODE_TRIES:
                     self.code = None
+                if tries[0] >= SENDER_TRIES or self.code is None:
                     return 429, {"error": "tries"}
                 return 403, {"error": "code"}
             self.code = None  # one use
+            self.senders.clear()
             key = secrets.token_urlsafe(32)
             device = {
                 "id": secrets.token_hex(8),
@@ -958,7 +1128,11 @@ class Handler(BaseHTTPRequestHandler):
         if self.plain_refused():
             return
         if path == "/phone/pair":
-            code, value = pairing.pair(body.get("code", ""), body.get("name", ""))
+            code, value = pairing.pair(
+                body.get("code", ""), body.get("name", ""), self.client_address[0]
+            )
+            if code in (403, 429) and value.get("error") in ("code", "tries"):
+                time.sleep(WRONG_DELAY)
             self.send_json(value, code)
         else:
             self.send_json({"error": "not found"}, 404)
@@ -982,9 +1156,10 @@ class LimitedServer(ThreadingHTTPServer):
     at most `per_address` from one address. Over the limit, a new connection
     is closed straight away and the server carries on."""
 
-    def __init__(self, address, handler, total=MAX_CONNECTIONS, per_address=None):
+    def __init__(self, address, handler, total=MAX_CONNECTIONS, per_address=None, deadline=None):
         self.total = total
         self.per_address = per_address
+        self.deadline = deadline
         self.active = 0
         self.by_address = {}
         self.limit_lock = threading.Lock()
@@ -1020,10 +1195,25 @@ class LimitedServer(ThreadingHTTPServer):
             self.shutdown_request(request)
 
     def process_request_thread(self, request, client_address):
+        timer = None
+        if self.deadline:
+            # Past the deadline the connection is cut, whatever the client does.
+            timer = threading.Timer(self.deadline, _cut, (request,))
+            timer.daemon = True
+            timer.start()
         try:
             super().process_request_thread(request, client_address)
         finally:
+            if timer is not None:
+                timer.cancel()
             self.release(client_address[0])
+
+
+def _cut(sock):
+    try:
+        sock.shutdown(socket.SHUT_RDWR)
+    except OSError:
+        pass
 
 
 def tls_server(cert, key, port):
@@ -1032,7 +1222,8 @@ def tls_server(cert, key, port):
     context.minimum_version = ssl.TLSVersion.TLSv1_3
     context.load_cert_chain(cert, key)
     httpd = LimitedServer(
-        ("0.0.0.0", port), PhoneHandler, per_address=MAX_PHONE_PER_ADDRESS
+        ("0.0.0.0", port), PhoneHandler, per_address=MAX_PHONE_PER_ADDRESS,
+        deadline=PHONE_DEADLINE,
     )
     # A refused handshake (an old TLS version, a port scan) is not worth a
     # stack trace in the logs.
@@ -1069,11 +1260,12 @@ def own_and_drop(*folders, uid=RUN_AS):
 
 
 def main():
-    global pairing, TLS
-    # Tailscale (other wallets) runs as the same user and keeps its state in
-    # TS_DIR, so it gets that folder too.
+    global pairing, TLS, last_seen
+    # TS_DIR holds only Tailscale's control socket (its state stays in its own
+    # container); it runs as the same user, so it gets that folder too.
     own_and_drop(PAIR_DIR, *([TS_DIR] if TS_DIR else []))
     pairing = Pairing(PAIR_DIR)
+    last_seen = LastSeen(PAIR_DIR)
     TLS = ensure_cert(PAIR_DIR)
     if TLS:
         phone = tls_server(TLS[0], TLS[1], TLS_PORT)

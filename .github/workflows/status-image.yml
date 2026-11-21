@@ -19,10 +19,24 @@ permissions:
 env:
   IMAGE: ghcr.io/zeckyapp/rockit-status
   # Raise with every change to the status page.
-  VERSION: 0.3.13
+  VERSION: 0.3.14
 
 jobs:
+  # No image without passing tests.
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Status server tests
+        working-directory: status
+        env:
+          WRONG_DELAY: "0"
+        run: python3 -m unittest -v test_server
+
   build:
+    needs: test
     strategy:
       matrix:
         include:
@@ -52,7 +66,9 @@ jobs:
           context: ./status
           platforms: ${{ matrix.platform }}
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
-          provenance: false
+          # Build provenance: a record of which workflow run and commit made
+          # the image, attached to it in the registry.
+          provenance: true
       - name: Keep the digest
         run: |
           mkdir -p /tmp/digests
@@ -87,7 +103,7 @@ jobs:
         working-directory: /tmp/digests
         run: |
           docker buildx imagetools create \
-            -t "$IMAGE:$VERSION" -t "$IMAGE:latest" \
+            -t "$IMAGE:$VERSION" \
             $(printf "$IMAGE@sha256:%s " *)
           docker buildx imagetools inspect "$IMAGE:$VERSION"
       - name: Report the digest to pin

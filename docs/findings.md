@@ -162,3 +162,48 @@ these measurements) and zingolabs/zaino#1673 (tree state by height).
   sync from zero. The RPC calls Zaino and the status page use, the environment
   settings Rock it sets, and the image's entrypoint are unchanged since 1.8.5;
   Mainnet still uses legacy TCP only.
+
+## Going back to the previous Zaino (21 November 2026)
+
+If a new Zaino build misbehaves (the page says "Wallets paused", or wallets
+stop seeing new blocks while the node is in sync), go back to the last build
+that worked:
+
+1. In `zecky-rock-it/docker-compose.yml`, set the `zaino` image back to the
+   last good tag and digest. Last good build:
+   `ghcr.io/zeckyapp/zaino-rockit:0.10.2-nu7-rockit1@sha256:25ebdfc899a29bd5374622c79ac9a5cb09fd8e7892cf86de056dc1741aba6ae8`
+   (NU7 support from zingolabs/zaino#1655 at commit `aaf8122a`, with patches
+   0001 and 0002; in use since Rock it 0.3.15).
+2. Raise the version in `zecky-rock-it/umbrel-app.yml` and say in the release
+   notes that Zaino went back one build.
+3. Push; owners update from the Umbrel App Store. Zaino keeps no index of its
+   own (`ephemeral_finalised_state = true`), so nothing has to sync again.
+
+Keep this digest up to date with every Zaino change.
+
+## The external review of 21 November 2026
+
+A review of commit 4cfe177 found nothing critical or high: no way to keys or
+funds. Fixed in Rock it 0.3.21: wrong pairing tries now count per sender
+(five in ten minutes, a short wait after each, twenty in all before the code
+dies); codes with other characters than plain letters and digits are refused
+instead of crashing; a damaged `devices.json` is kept and pairing stops,
+instead of every iPhone being unpaired; a phone request must finish within 20
+seconds; the status container only gets Tailscale's control socket, not its
+state; the page reads the stop height from Zakura (`getdeprecationinfo`) and
+warns two weeks ahead; "Node update needed" and "Wallets paused" states;
+memory ceilings (Zakura 2 GB, Zaino 1 GB; measured in use on 21 November:
+about 350 MB and 60 MB); status image only built after its tests pass, with
+provenance and without moving `latest`; the old `compose.yml` removed;
+`rockit-status.sh` finds the real containers; licence texts added.
+
+Patch 0002 note from the review: a tree state asked for by height comes from
+the node, not from Zaino's own view. With `ephemeral_finalised_state = true`
+Zaino has no view of its own, so the two only differ while Zaino is behind;
+the "Wallets paused" check covers that case.
+
+Planned next: the `rockit://` link check in the iPhone app (only home
+addresses and the owner's own tailnet, and a confirmation before an existing
+pairing is replaced), cookie login on the node's RPC, filling in the block
+hash in patch 0001 and offering it to ZingoLabs, provenance and no `latest`
+for the Zaino image with its next build.
