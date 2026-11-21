@@ -1,4 +1,4 @@
-# Zaino settings for Zecky Rock it (Zaino 0.10.2 with the Rock it patches).
+# Zaino settings for Zecky Rock it (Zaino with NU7 support and the Rock it patches).
 # Written by Umbrel from zainod.toml.template on every start.
 
 backend = "rpc"
@@ -7,6 +7,11 @@ network = "Mainnet"
 # No index of its own: every read goes to the node, so wallets can connect as
 # soon as Zaino starts.
 ephemeral_finalised_state = true
+
+[json_server_settings]
+# Zaino's JSON-RPC, only on Rock it's own network and not published: the
+# status page asks it for Zaino's latest block, to see that wallets keep up.
+json_rpc_listen_address = "${APP_ZECKY_ROCK_IT_ZAINO_IP}:${APP_ZECKY_ROCK_IT_ZAINO_RPC_PORT}"
 
 [grpc_settings]
 # Must be a private IP address: Zaino refuses to serve wallets on a name or a

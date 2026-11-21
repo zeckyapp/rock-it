@@ -7,3 +7,6 @@ export APP_ZECKY_ROCK_IT_ZAINO_IP="10.137.42.11"
 export APP_ZECKY_ROCK_IT_WALLET_PORT="8137"
 # The Rock it iPhone app's HTTPS port.
 export APP_ZECKY_ROCK_IT_PHONE_PORT="8139"
+# Zaino's own JSON-RPC, only on Rock it's network (the page's check that
+# wallets keep up with the node). Not published.
+export APP_ZECKY_ROCK_IT_ZAINO_RPC_PORT="8237"

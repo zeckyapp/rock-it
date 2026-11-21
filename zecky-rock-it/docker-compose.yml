@@ -11,7 +11,7 @@ services:
   # Status and connection page (the app's web UI and home-screen widget).
   status:
     # The digest pins the exact build (the Status image workflow reports it).
-    image: ghcr.io/zeckyapp/rockit-status:0.3.13@sha256:88595fe9b86c3568ce2fef7fb4fbcef4014e4fafe1043ccfcdd0bee27224461d
+    image: ghcr.io/zeckyapp/rockit-status:0.3.14@sha256:73999c649e4f2e688873138a4bb7d2322cc95199239946cdfe279b851860728f
     # Starts as root only to give its data folder to user 1000 (Docker makes a
     # missing folder owned by root), then drops to 1000 before serving.
     user: "0:0"
@@ -19,10 +19,13 @@ services:
     environment:
       ZAKURA_RPC: "http://${APP_ZECKY_ROCK_IT_ZAKURA_IP}:8232"
       ZAINO_ADDR: "${APP_ZECKY_ROCK_IT_ZAINO_IP}:${APP_ZECKY_ROCK_IT_WALLET_PORT}"
+      # Zaino's own JSON-RPC, only on Rock it's network: the page compares
+      # Zaino's latest block with the node's ("Wallets paused").
+      ZAINO_RPC: "http://${APP_ZECKY_ROCK_IT_ZAINO_IP}:${APP_ZECKY_ROCK_IT_ZAINO_RPC_PORT}"
       WALLET_PORT: "${APP_ZECKY_ROCK_IT_WALLET_PORT}"
       APP_VERSION: "${APP_VERSION}"
-      # The block where the Zakura release below stops. Update it with the
-      # node image; the page shows when the next node update is due.
+      # The block where the Zakura release below stops. The page reads it from
+      # the node itself; this is only the fallback. Update it with the image.
       ZAKURA_STOP_HEIGHT: "3643309"
       DATA_DIR: /chain
       PAIR_DIR: /data
@@ -33,7 +36,8 @@ services:
       # Rock it's own network. Anything else gets 403.
       PAGE_CLIENTS: "10.137.42.1"
       # Other wallets (Zodl, Vizor, ...): the Tailscale service below, off
-      # until the owner turns it on on the page.
+      # until the owner turns it on on the page. The page only gets its
+      # control socket, never its state (the Rock's identity in the tailnet).
       TS_SOCKET: /tailscale/tailscaled.sock
       TS_DIR: /tailscale
     ports:
@@ -45,9 +49,8 @@ services:
       - ${APP_DATA_DIR}/data/rockit:/data
       # Read-only, only to show the free space on the drive.
       - ${APP_DATA_DIR}/data/zakura:/chain:ro
-      # Tailscale's state and control socket (other wallets). The status page
-      # gives it to user 1000 on start, like its own folder.
-      - ${APP_DATA_DIR}/data/tailscale:/tailscale
+      # Only Tailscale's control socket (other wallets).
+      - ${APP_DATA_DIR}/data/tailscale-socket:/tailscale
     networks:
       # Only Rock it's own network. Umbrel (on the host) still reaches the
       # page and the widget here; other apps cannot reach it at all. It must
@@ -62,22 +65,25 @@ services:
   # together with ZAKURA_STOP_HEIGHT under status.
   # Runs as root at first: its entrypoint gives the data folder to its own
   # user (10001) and then drops to that user.
-  # Runs once at every start, before the node and Zaino, then stops. Docker
-  # makes a missing data folder owned by root, but Zakura runs as 10001 and
-  # Zaino as 1000. This gives each its folder, only when the owner is wrong
-  # (so a synced chain is never walked through again). Same image as the
-  # status page, so nothing extra is downloaded; no network.
+  # Runs once at every start, before the node, Zaino and Tailscale, then
+  # stops. Docker makes a missing data folder owned by root, but Zakura runs
+  # as 10001 and Zaino and Tailscale as 1000. This gives each its folder,
+  # only when the owner is wrong (so a synced chain is never walked through
+  # again). Same image as the status page, so nothing extra is downloaded; no
+  # network.
   prepare:
-    image: ghcr.io/zeckyapp/rockit-status:0.3.13@sha256:88595fe9b86c3568ce2fef7fb4fbcef4014e4fafe1043ccfcdd0bee27224461d
+    image: ghcr.io/zeckyapp/rockit-status:0.3.14@sha256:73999c649e4f2e688873138a4bb7d2322cc95199239946cdfe279b851860728f
     user: "0:0"
     restart: "no"
     network_mode: none
     entrypoint: ["/bin/sh", "-c"]
     command:
-      - 'own() { [ "$$(stat -c %u:%g "$$1")" = "$$2" ] || chown -R "$$2" "$$1"; }; own /zakura 10001:10001 && own /zaino 1000:1000'
+      - 'own() { [ "$$(stat -c %u:%g "$$1")" = "$$2" ] || chown -R "$$2" "$$1"; }; own /zakura 10001:10001 && own /zaino 1000:1000 && own /tailscale 1000:1000 && own /tailscale-socket 1000:1000'
     volumes:
       - ${APP_DATA_DIR}/data/zakura:/zakura
       - ${APP_DATA_DIR}/data/zaino:/zaino
+      - ${APP_DATA_DIR}/data/tailscale:/tailscale
+      - ${APP_DATA_DIR}/data/tailscale-socket:/tailscale-socket
 
   zakura:
     image: docker.io/zakuracore/zakura:1.8.9@sha256:dfed18db7fb5005d31778a9b5b5ebfbd2c6590a616eacbd435a59c689c19a0e1
@@ -85,7 +91,12 @@ services:
     depends_on:
       prepare:
         condition: service_completed_successfully
-    stop_grace_period: 1m
+    # Time to close the database cleanly on a stop or an update.
+    stop_grace_period: 3m
+    # A ceiling, so Rock it can never push other apps (such as a Bitcoin
+    # node) out of memory. Zakura uses about 350 MB when in sync; the rest is
+    # room for the first sync.
+    mem_limit: 2g
     environment:
       # RPC for Zaino and the status page. It has no password, so it is only
       # on Rock it's own network: other Umbrel apps cannot reach it.
@@ -101,12 +112,14 @@ services:
       rockit:
         ipv4_address: $APP_ZECKY_ROCK_IT_ZAKURA_IP
 
-  # Light-wallet server: Zecky Lock it and Pocket connect here.
+  # Light-wallet server: Zecky Lock it and other wallets connect here.
   zaino:
     # NU7: built from ZingoLabs' NU7 fix (zingolabs/zaino#1655) with the Rock it
     # patches; 0.10.2 stops at the last block before NU7.
     image: ghcr.io/zeckyapp/zaino-rockit:0.10.2-nu7-rockit1@sha256:25ebdfc899a29bd5374622c79ac9a5cb09fd8e7892cf86de056dc1741aba6ae8
     restart: on-failure
+    # A ceiling like the node's; Zaino uses about 60 MB.
+    mem_limit: 1g
     depends_on:
       prepare:
         condition: service_completed_successfully
@@ -116,7 +129,7 @@ services:
       - ${APP_DATA_DIR}/zainod.toml:/app/config/zainod.toml:ro
       - ${APP_DATA_DIR}/data/zaino:/app/data
     ports:
-      # Open to the home network for Lock it and Pocket, as before.
+      # Open to the home network for Lock it and other wallets.
       - "${APP_ZECKY_ROCK_IT_WALLET_PORT}:${APP_ZECKY_ROCK_IT_WALLET_PORT}"
     networks:
       rockit:
@@ -133,14 +146,18 @@ services:
     user: "1000:1000"
     restart: on-failure
     depends_on:
-      - status
+      prepare:
+        condition: service_completed_successfully
+      status:
+        condition: service_started
     entrypoint:
       - tailscaled
       - --tun=userspace-networking
       - --state=/var/lib/tailscale/tailscaled.state
-      - --socket=/var/lib/tailscale/tailscaled.sock
+      - --socket=/var/run/tailscale/tailscaled.sock
     volumes:
       - ${APP_DATA_DIR}/data/tailscale:/var/lib/tailscale
+      - ${APP_DATA_DIR}/data/tailscale-socket:/var/run/tailscale
     networks:
       rockit: {}
 

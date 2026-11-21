@@ -4,7 +4,7 @@ storage:
   dataRoot: data
 category: finance
 name: Zecky Rock it
-version: "0.3.20"
+version: "0.3.21"
 tagline: Your own Zcash node for Zecky Lock it and Zecky Flip it
 icon: https://raw.githubusercontent.com/zeckyapp/rock-it/main/status/icon.svg
 description: >-
@@ -25,10 +25,22 @@ description: >-
   home network, or through Tailscale anywhere else.
 
 
+  Rock it keeps the full chain, so it can serve every wallet. For a small,
+  pruned Zcash node on a Mac or Windows PC, use Go Max in Zecky Lock it.
+
+
   Powered by Zakura (a Zcash node based on Zebra) and Zaino (a light-wallet
   server by Zingo Labs), with two small Rock it patches for speed on a
   Raspberry Pi.
 releaseNotes: >-
+  0.3.21: a safety net. The page now warns two weeks before your node needs
+  its next update, and says clearly when an update is needed or when the
+  wallet server has stopped following the node. Rock it uses at most 3 GB of
+  memory, so other apps on your Umbrel keep room. Pairing the Rock it app is
+  harder to block, and the page no longer has access to your Tailscale
+  identity.
+
+
   0.3.20: a new look. Your node's page shows a turning planet (Earth, Mars
   or the Moon) with the transactions of each new block coming in, the latest
   blocks and how many were shielded, the shielded share of all ZEC, and when
